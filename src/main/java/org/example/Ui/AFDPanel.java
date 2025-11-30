@@ -8,10 +8,14 @@ import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
 import javafx.scene.shape.Line;
+import javafx.scene.shape.Path;
+import javafx.scene.shape.MoveTo;
+import javafx.scene.shape.QuadCurveTo;
 import javafx.scene.text.Text;
 import javafx.stage.FileChooser;
 import java.io.*;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Panel de interfaz para el modo AFD
@@ -181,7 +185,7 @@ public class AFDPanel extends BorderPane {
             // Agregar estados
             String[] estados = estadosField.getText().trim().split(",");
             for (String estado : estados) {
-                afd.agregarEstado(estado.trim());
+                if (!estado.isEmpty()) afd.agregarEstado(estado.trim());
             }
 
             // Agregar alfabeto
@@ -191,12 +195,13 @@ public class AFDPanel extends BorderPane {
             }
 
             // Establecer estado inicial
-            afd.setEstadoInicial(estadoInicialField.getText().trim());
+            String estadoInicial = estadoInicialField.getText().trim();
+            if (!estadoInicial.isEmpty()) afd.setEstadoInicial(estadoInicial);
 
             // Agregar estados finales
             String[] finales = estadosFinalesField.getText().trim().split(",");
             for (String estado : finales) {
-                afd.agregarEstadoFinal(estado.trim());
+                if (!estado.isEmpty()) afd.agregarEstadoFinal(estado.trim());
             }
 
             // Agregar transiciones
@@ -224,16 +229,22 @@ public class AFDPanel extends BorderPane {
         }
     }
 
+    /**
+     * Dibuja las transiciones como arcos, maneja bucles y transiciones de ida y vuelta.
+     * Agrupa las etiquetas de los símbolos por cada arco (origen-destino).
+     * CORREGIDO: Ajustes de curvatura para transiciones recíprocas y unidireccionales.
+     */
     private void visualizarAFD() {
         canvasPane.getChildren().clear();
 
         Set<String> estados = afd.getEstados();
         if (estados.isEmpty()) return;
 
-        // Posicionar estados en círculo
+        // Posicionar estados en círculo (Mantiene la distribución anterior)
         double centerX = canvasPane.getPrefWidth() / 2;
         double centerY = canvasPane.getPrefHeight() / 2;
-        double radius = Math.min(centerX, centerY) - 60;
+        double graphRadius = Math.min(centerX, centerY) - 80;
+        final double STATE_RADIUS = 30;
 
         Map<String, Point> posiciones = new HashMap<>();
         List<String> listaEstados = new ArrayList<>(estados);
@@ -241,65 +252,145 @@ public class AFDPanel extends BorderPane {
         double angleStep = 2 * Math.PI / listaEstados.size();
 
         for (String estado : listaEstados) {
-            double x = centerX + radius * Math.cos(angle);
-            double y = centerY + radius * Math.sin(angle);
+            double x = centerX + graphRadius * Math.cos(angle);
+            double y = centerY + graphRadius * Math.sin(angle);
             posiciones.put(estado, new Point(x, y));
             angle += angleStep;
         }
 
-        // Dibujar transiciones (líneas)
-        Map<String, Map<Character, String>> trans = afd.getTransiciones();
-        for (String origen : trans.keySet()) {
-            for (Map.Entry<Character, String> entry : trans.get(origen).entrySet()) {
+        // DIBUJAR TRANSICIONES (ARCOS O BUCLES)
+        Map<String, Map<Character, String>> transicionesAFD = afd.getTransiciones();
+
+        // Agrupar transiciones por origen y destino, concatenando los símbolos.
+        Map<String, List<Character>> groupedSymbols = new HashMap<>();
+        for (String origen : transicionesAFD.keySet()) {
+            for (Map.Entry<Character, String> entry : transicionesAFD.get(origen).entrySet()) {
                 String destino = entry.getValue();
                 char simbolo = entry.getKey();
-
-                Point p1 = posiciones.get(origen);
-                Point p2 = posiciones.get(destino);
-
-                if (p1 != null && p2 != null) {
-                    Line line = new Line(p1.x, p1.y, p2.x, p2.y);
-                    line.setStroke(Color.GRAY);
-                    line.setStrokeWidth(2);
-                    canvasPane.getChildren().add(line);
-
-                    // Etiqueta de transición
-                    Text label = new Text((p1.x + p2.x) / 2, (p1.y + p2.y) / 2, String.valueOf(simbolo));
-                    label.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
-                    canvasPane.getChildren().add(label);
-                }
+                String key = origen + "-" + destino;
+                groupedSymbols.computeIfAbsent(key, k -> new ArrayList<>()).add(simbolo);
             }
         }
 
-        // Dibujar estados (círculos)
+        for (Map.Entry<String, List<Character>> entry : groupedSymbols.entrySet()) {
+            String[] estadosPair = entry.getKey().split("-");
+            String origen = estadosPair[0];
+            String destino = estadosPair[1];
+
+            // Concatenar símbolos para la etiqueta
+            String labelText = entry.getValue().stream()
+                    .map(String::valueOf)
+                    .sorted()
+                    .collect(Collectors.joining(","));
+
+            Point p1 = posiciones.get(origen);
+            Point p2 = posiciones.get(destino);
+
+            if (p1 == null || p2 == null) {
+                mostrarError("Estado no encontrado para transición: " + origen + " o " + destino);
+                continue;
+            }
+
+            if (origen.equals(destino)) {
+                drawSelfLoop(canvasPane, p1, labelText, STATE_RADIUS);
+            } else {
+
+                boolean hasReverse = groupedSymbols.containsKey(destino + "-" + origen);
+                double bendFactor = 0.0;
+
+                // Lógica de curvatura:
+                if (hasReverse) {
+                    // *** CORRECCIÓN CLAVE 1: Aumentar la curvatura ligeramente para separar arcos ***
+                    final double RECIPROCAL_CURVE_MAGNITUDE = 0.7;
+
+                    if (origen.compareTo(destino) < 0) {
+                        bendFactor = RECIPROCAL_CURVE_MAGNITUDE;
+                    } else {
+                        bendFactor = -RECIPROCAL_CURVE_MAGNITUDE;
+                    }
+                } else {
+                    // Se mantiene en 0.0 para que las transiciones unidireccionales sean rectas.
+                    bendFactor = 0.0;
+                }
+
+                Point controlPoint = calculateControlPoint(p1, p2, bendFactor, 0);
+
+                Point startPoint = getPointOnCircle(p1, controlPoint, STATE_RADIUS);
+                Point endPoint = getPointOnCircle(p2, controlPoint, STATE_RADIUS);
+
+                // DIBUJAR EL ARCO
+                Path path = new Path();
+                path.getElements().add(new MoveTo(startPoint.x, startPoint.y));
+                path.getElements().add(new QuadCurveTo(controlPoint.x, controlPoint.y, endPoint.x, endPoint.y));
+                path.setStroke(Color.GRAY);
+                path.setStrokeWidth(2);
+                canvasPane.getChildren().add(path);
+
+                // AÑADIR PUNTA DE FLECHA
+                addArrowHead(canvasPane, endPoint, controlPoint, 8.0);
+
+                // ETIQUETA DE TRANSICIÓN
+                Point labelPos = calculateMidpointOnQuadCurve(startPoint, controlPoint, endPoint);
+                Text label = new Text(labelPos.x, labelPos.y, labelText);
+                label.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
+                label.setFill(Color.RED);
+
+                // *** CORRECCIÓN CLAVE 2: Aumentar el desplazamiento vertical para evitar superposición con la flecha opuesta ***
+                double labelYOffset = hasReverse ? -28 : -5;
+
+                label.setTranslateX(-(label.getLayoutBounds().getWidth() / 2));
+                label.setTranslateY(-(label.getLayoutBounds().getHeight() / 2) + labelYOffset);
+
+                canvasPane.getChildren().add(label);
+            }
+        }
+
+        // DIBUJAR ESTADOS (CÍRCULOS)
         for (String estado : listaEstados) {
             Point p = posiciones.get(estado);
 
-            Circle circle = new Circle(p.x, p.y, 30);
+            Circle circle = new Circle(p.x, p.y, STATE_RADIUS);
             circle.setFill(Color.LIGHTBLUE);
             circle.setStroke(Color.DARKBLUE);
             circle.setStrokeWidth(2);
+            canvasPane.getChildren().add(circle);
 
             // Doble círculo para estados finales
             if (afd.getEstadosFinales().contains(estado)) {
-                Circle innerCircle = new Circle(p.x, p.y, 25);
+                Circle innerCircle = new Circle(p.x, p.y, STATE_RADIUS - 5);
                 innerCircle.setFill(Color.TRANSPARENT);
                 innerCircle.setStroke(Color.DARKBLUE);
                 innerCircle.setStrokeWidth(2);
                 canvasPane.getChildren().add(innerCircle);
             }
 
-            // Flecha para estado inicial
+            // Flecha para estado inicial (entrada)
             if (estado.equals(afd.getEstadoInicial())) {
-                Line arrow = new Line(p.x - 50, p.y, p.x - 30, p.y);
-                arrow.setStroke(Color.GREEN);
-                arrow.setStrokeWidth(3);
-                canvasPane.getChildren().add(arrow);
+
+                // Flecha de estado inicial entrando desde la izquierda (posición tradicional)
+                double arrowLength = 50;
+                final double ANGLE_RAD = Math.toRadians(180);
+
+                Point targetPoint = new Point(
+                        p.x + STATE_RADIUS * Math.cos(ANGLE_RAD),
+                        p.y + STATE_RADIUS * Math.sin(ANGLE_RAD)
+                );
+
+                Point startPoint = new Point(
+                        p.x + (STATE_RADIUS + arrowLength) * Math.cos(ANGLE_RAD),
+                        p.y + (STATE_RADIUS + arrowLength) * Math.sin(ANGLE_RAD)
+                );
+
+                Line arrowLine = new Line(startPoint.x, startPoint.y, targetPoint.x, targetPoint.y);
+                arrowLine.setStroke(Color.GREEN);
+                arrowLine.setStrokeWidth(3);
+                canvasPane.getChildren().add(arrowLine);
+
+                addArrowHead(canvasPane, targetPoint, startPoint, 8.0, Color.GREEN);
             }
 
-            canvasPane.getChildren().add(circle);
-
-            Text text = new Text(p.x - 10, p.y + 5, estado);
+            // Etiqueta del estado (ej. "q0")
+            Text text = new Text(p.x - (estado.length() * 4), p.y + 5, estado);
             text.setStyle("-fx-font-weight: bold;");
             canvasPane.getChildren().add(text);
         }
@@ -312,6 +403,10 @@ public class AFDPanel extends BorderPane {
             mostrarError("Primero debe construir el AFD");
             return;
         }
+        if (afd.getEstadoInicial() == null || afd.getEstadoInicial().isEmpty()) {
+            mostrarError("Defina el estado inicial antes de procesar una cadena.");
+            return;
+        }
 
         boolean aceptada = afd.procesar(cadena);
         List<String> pasos = afd.obtenerPasoAPaso();
@@ -319,6 +414,7 @@ public class AFDPanel extends BorderPane {
         StringBuilder resultado = new StringBuilder();
         resultado.append("═══════════════════════════════\n");
         resultado.append("Cadena: \"").append(cadena).append("\"\n");
+        resultado.append(aceptada ? "Resultado: ACEPTADA\n" : "Resultado: RECHAZADA\n");
         resultado.append("═══════════════════════════════\n\n");
         resultado.append("Paso a paso:\n");
 
@@ -389,12 +485,169 @@ public class AFDPanel extends BorderPane {
         alert.showAndWait();
     }
 
-    // Clase auxiliar para posiciones
+    // =========================================================
+    // MÉTODOS Y CLASES AUXILIARES
+    // =========================================================
+
+    /**
+     * Clase auxiliar para las coordenadas de un punto.
+     */
     private static class Point {
         double x, y;
         Point(double x, double y) {
             this.x = x;
             this.y = y;
         }
+        double distance(Point other) {
+            return Math.sqrt(Math.pow(this.x - other.x, 2) + Math.pow(this.y - other.y, 2));
+        }
+    }
+
+    /**
+     * Clase auxiliar para almacenar información de la transición.
+     */
+    private static class TransitionInfo {
+        String origen;
+        String destino;
+        char simbolo;
+
+        TransitionInfo(String origen, String destino, char simbolo) {
+            this.origen = origen;
+            this.destino = destino;
+            this.simbolo = simbolo;
+        }
+    }
+
+
+    /**
+     * Calcula el punto en la circunferencia de un círculo que está en la dirección
+     * de un punto externo (o un punto de control para una curva).
+     */
+    private Point getPointOnCircle(Point circleCenter, Point targetPoint, double radius) {
+        double dx = targetPoint.x - circleCenter.x;
+        double dy = targetPoint.y - circleCenter.y;
+        double dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist == 0) return circleCenter;
+
+        double ratio = radius / dist;
+        double x = circleCenter.x + (dx * ratio);
+        double y = circleCenter.y + (dy * ratio);
+
+        return new Point(x, y);
+    }
+
+    /**
+     * Calcula un punto de control para curvar una transición entre dos estados.
+     */
+    private Point calculateControlPoint(Point p1, Point p2, double bendFactor, double offsetMultiplier) {
+        double midX = (p1.x + p2.x) / 2;
+        double midY = (p1.y + p2.y) / 2;
+
+        double dx = p2.x - p1.x;
+        double dy = p2.y - p1.y;
+
+        // Vector perpendicular (normal) a la línea p1-p2
+        double normalDx = -dy;
+        double normalDy = dx;
+
+        // Normalizar el vector
+        double length = Math.sqrt(normalDx * normalDx + normalDy * normalDy);
+        if (length == 0) return new Point(midX, midY);
+
+        normalDx /= length;
+        normalDy /= length;
+
+        // Calcular punto de control desplazado
+        double offsetDistance = length * bendFactor;
+
+        return new Point(midX + normalDx * offsetDistance, midY + normalDy * offsetDistance);
+    }
+
+    /**
+     * Calcula el punto medio de una curva cuadrática de Bézier.
+     */
+    private Point calculateMidpointOnQuadCurve(Point p0, Point p1, Point p2) {
+        double t = 0.5;
+        double oneMinusT = 1 - t;
+
+        double x = oneMinusT * oneMinusT * p0.x + 2 * oneMinusT * t * p1.x + t * t * p2.x;
+        double y = oneMinusT * oneMinusT * p0.y + 2 * oneMinusT * t * p1.y + t * t * p2.y;
+
+        return new Point(x, y);
+    }
+
+    /**
+     * Dibuja un bucle (self-loop) mejorado.
+     */
+    private void drawSelfLoop(Pane pane, Point center, String labelText, double stateRadius) {
+        double controlOffset = stateRadius * 2.5;
+
+        // Puntos de entrada y salida del bucle en el borde superior del círculo
+        double startAngle = Math.toRadians(250);
+        Point startLoop = new Point(center.x + stateRadius * Math.cos(startAngle),
+                center.y + stateRadius * Math.sin(startAngle));
+
+        double endAngle = Math.toRadians(290);
+
+        Point endLoop = new Point(center.x + stateRadius * Math.cos(endAngle),
+                center.y + stateRadius * Math.sin(endAngle));
+
+
+        // Punto de control para el arco (más arriba)
+        Point controlLoop = new Point(center.x, center.y - controlOffset);
+
+        Path loopPath = new Path();
+        loopPath.getElements().add(new MoveTo(startLoop.x, startLoop.y));
+        loopPath.getElements().add(new QuadCurveTo(controlLoop.x, controlLoop.y, endLoop.x, endLoop.y));
+        loopPath.setStroke(Color.GRAY);
+        loopPath.setStrokeWidth(2);
+        pane.getChildren().add(loopPath);
+
+        // Añadir punta de flecha al final del bucle
+        addArrowHead(pane, endLoop, controlLoop, 8.0);
+
+        // Etiqueta del bucle: un poco debajo del punto de control
+        Point labelPos = calculateMidpointOnQuadCurve(startLoop, controlLoop, endLoop);
+        Text label = new Text(labelPos.x, labelPos.y - 10, labelText);
+        label.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
+        label.setFill(Color.RED); // Etiqueta roja
+        // Centrar la etiqueta horizontalmente
+        label.setTranslateX(-(label.getLayoutBounds().getWidth() / 2));
+        pane.getChildren().add(label);
+    }
+
+
+    /**
+     * Añade una punta de flecha al final de una línea o curva con un color específico.
+     */
+    private void addArrowHead(Pane pane, Point tip, Point tail, double size, Color color) {
+        double dx = tip.x - tail.x;
+        double dy = tip.y - tail.y;
+        double angle = Math.atan2(dy, dx);
+
+        Point p1 = new Point(
+                tip.x - size * Math.cos(angle - Math.PI / 6),
+                tip.y - size * Math.sin(angle - Math.PI / 6)
+        );
+        Point p2 = new Point(
+                tip.x - size * Math.cos(angle + Math.PI / 6),
+                tip.y - size * Math.sin(angle + Math.PI / 6)
+        );
+
+        Line arrow1 = new Line(tip.x, tip.y, p1.x, p1.y);
+        Line arrow2 = new Line(tip.x, tip.y, p2.x, p2.y);
+
+        arrow1.setStroke(color);
+        arrow2.setStroke(color);
+        arrow1.setStrokeWidth(2);
+        arrow2.setStrokeWidth(2);
+
+        pane.getChildren().addAll(arrow1, arrow2);
+    }
+
+    // Sobrecarga para el color por defecto (gris)
+    private void addArrowHead(Pane pane, Point tip, Point tail, double size) {
+        addArrowHead(pane, tip, tail, size, Color.GRAY);
     }
 }
