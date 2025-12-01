@@ -24,6 +24,7 @@ public class GLCPanel extends BorderPane {
     private TextField cadenaField;
 
     public GLCPanel() {
+        // Asegúrate de que GLC use LinkedHashMap para el orden
         this.glc = new GLC();
         initUI();
     }
@@ -71,9 +72,9 @@ public class GLCPanel extends BorderPane {
 
         Label ejemploLabel = new Label(
                 "Ejemplos:\n" +
-                        "Palíndromos: S→aSa | bSb | ε\n" +
-                        "Paréntesis: S→(S) | SS | ε\n" +
-                        "a^n b^n: S→aSb | ε"
+                        "S→aA\n" +
+                        "A→bA\n" +
+                        "A→b"
         );
         ejemploLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #888; " +
                 "-fx-background-color: #ffffcc; -fx-padding: 5;");
@@ -137,6 +138,15 @@ public class GLCPanel extends BorderPane {
         buttonGrid.setVgap(10);
         buttonGrid.setAlignment(Pos.CENTER);
 
+        // Nuevo Botón de Verificación
+        Button verificarBtn = new Button("Verificar Cadena");
+        verificarBtn.setStyle("-fx-background-color: #FF9800; -fx-text-fill: white;");
+        verificarBtn.setPrefWidth(150);
+        verificarBtn.setOnAction(e -> {
+            verificarCadena();
+            gramaticaView.setText(glc.getProduccionesTexto());
+        });
+
         Button derivarIzqBtn = new Button("Derivar Izquierda");
         derivarIzqBtn.setStyle("-fx-background-color: #2196F3; -fx-text-fill: white;");
         derivarIzqBtn.setPrefWidth(150);
@@ -161,9 +171,11 @@ public class GLCPanel extends BorderPane {
             gramaticaView.setText(glc.getProduccionesTexto());
         });
 
-        buttonGrid.add(derivarIzqBtn, 0, 0);
-        buttonGrid.add(derivarDerBtn, 1, 0);
-        buttonGrid.add(arbolBtn, 0, 1, 2, 1);
+        // Distribución de botones corregida
+        buttonGrid.add(verificarBtn, 0, 0);
+        buttonGrid.add(derivarIzqBtn, 1, 0);
+        buttonGrid.add(derivarDerBtn, 0, 1);
+        buttonGrid.add(arbolBtn, 1, 1);
 
         testBox.getChildren().addAll(testLabel, cadenaField, buttonGrid);
 
@@ -196,11 +208,13 @@ public class GLCPanel extends BorderPane {
 
     private void construirGramatica() {
         try {
+            // Se debe reconstruir la GLC aquí para usar el LinkedHashMap
             glc = new GLC();
 
             String simboloInicial = simboloInicialField.getText().trim();
             glc.setSimboloInicial(simboloInicial);
 
+            // Se agregan No Terminales primero para que el LinkedHashMap mantenga el orden de aparición
             String[] noTerminales = noTerminalesField.getText().trim().split(",");
             for (String nt : noTerminales) {
                 glc.agregarNoTerminal(nt.trim());
@@ -221,6 +235,10 @@ public class GLCPanel extends BorderPane {
                 String izq = partes[0].trim();
                 String der = partes[1].trim();
 
+                // Asegura que el NT izquierdo ya exista antes de agregar la producción
+                if (!glc.getNoTerminales().contains(izq)) {
+                    glc.agregarNoTerminal(izq);
+                }
                 glc.agregarProduccion(izq, der);
             }
 
@@ -232,7 +250,36 @@ public class GLCPanel extends BorderPane {
 
         } catch (Exception e) {
             mostrarError("Error al construir gramática: " + e.getMessage());
+            e.printStackTrace();
         }
+    }
+
+    // Nuevo método
+    private void verificarCadena() {
+        String cadena = cadenaField.getText().trim();
+
+        if (glc.getNoTerminales().isEmpty()) {
+            mostrarError("Primero debe construir la gramática");
+            return;
+        }
+
+        // Se usa la función de pertenencia basada en la derivación
+        boolean pertenece = glc.pertenece(cadena);
+
+        StringBuilder resultado = new StringBuilder();
+        resultado.append("═══════════════════════════════\n");
+        resultado.append("VERIFICACIÓN DE CADENA\n");
+        resultado.append("Cadena: \"").append(cadena).append("\"\n");
+        resultado.append("═══════════════════════════════\n\n");
+        resultado.append("Gramática:\n").append(glc.getProduccionesTexto()).append("\n");
+
+        if (pertenece) {
+            resultado.append("✓ La cadena **PERTENECE** al lenguaje (se pudo derivar)");
+        } else {
+            resultado.append("✗ La cadena **NO PERTENECE** al lenguaje (falló la derivación)");
+        }
+
+        outputArea.setText(resultado.toString());
     }
 
     private void derivarIzquierda() {
@@ -254,8 +301,13 @@ public class GLCPanel extends BorderPane {
         resultado.append("Gramática:\n").append(glc.getProduccionesTexto()).append("\n");
 
         resultado.append("Pasos de derivación:\n");
-        for (int i = 0; i < derivaciones.size(); i++) {
-            resultado.append(String.format("%2d. %s\n", i, derivaciones.get(i)));
+        // Mostrar la derivación si fue exitosa
+        if (!derivaciones.isEmpty() && !derivaciones.get(0).equals("No se pudo derivar la cadena")) {
+            for (int i = 0; i < derivaciones.size(); i++) {
+                resultado.append(String.format("%2d. %s\n", i, derivaciones.get(i)));
+            }
+        } else {
+            resultado.append("✗ No se pudo encontrar una derivación por la izquierda.");
         }
 
         outputArea.setText(resultado.toString());
@@ -280,8 +332,13 @@ public class GLCPanel extends BorderPane {
         resultado.append("Gramática:\n").append(glc.getProduccionesTexto()).append("\n");
 
         resultado.append("Pasos de derivación:\n");
-        for (int i = 0; i < derivaciones.size(); i++) {
-            resultado.append(String.format("%2d. %s\n", i, derivaciones.get(i)));
+        // Mostrar la derivación si fue exitosa
+        if (!derivaciones.isEmpty() && !derivaciones.get(0).equals("No se pudo derivar la cadena")) {
+            for (int i = 0; i < derivaciones.size(); i++) {
+                resultado.append(String.format("%2d. %s\n", i, derivaciones.get(i)));
+            }
+        } else {
+            resultado.append("✗ No se pudo encontrar una derivación por la derecha.");
         }
 
         outputArea.setText(resultado.toString());
@@ -295,7 +352,16 @@ public class GLCPanel extends BorderPane {
             return;
         }
 
-        GLC.NodoArbol arbol = glc.generarArbolSintactico(cadena);
+        // Se añade un try-catch para manejar errores potenciales de la recursión compleja
+        GLC.NodoArbol arbol = null;
+        try {
+            arbol = glc.generarArbolSintactico(cadena);
+        } catch (StackOverflowError e) {
+            mostrarError("Error: Desbordamiento de pila. La cadena podría ser muy larga o la gramática ambigua/recursiva.");
+            e.printStackTrace();
+            return;
+        }
+
 
         StringBuilder resultado = new StringBuilder();
         resultado.append("═══════════════════════════════\n");
@@ -308,12 +374,13 @@ public class GLCPanel extends BorderPane {
             resultado.append(glc.visualizarArbol(arbol));
         } else {
             resultado.append("✗ No se pudo generar el árbol sintáctico\n");
-            resultado.append("La cadena podría no pertenecer al lenguaje.");
+            resultado.append("La cadena podría no pertenecer al lenguaje o la lógica de parsing falló.");
         }
 
         outputArea.setText(resultado.toString());
     }
 
+    // Métodos cargarDesdeArchivo, guardarEnArchivo, mostrarError (sin cambios)
     private void cargarDesdeArchivo() {
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Cargar GLC");

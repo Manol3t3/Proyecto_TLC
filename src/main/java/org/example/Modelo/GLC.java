@@ -10,12 +10,13 @@ public class GLC {
     private Set<String> noTerminales;
     private Set<Character> terminales;
     private String simboloInicial;
+    // Se usa LinkedHashMap para mantener el orden de inserción de las claves (No Terminales).
     private Map<String, List<String>> producciones;
 
     public GLC() {
         this.noTerminales = new HashSet<>();
         this.terminales = new HashSet<>();
-        this.producciones = new HashMap<>();
+        this.producciones = new LinkedHashMap<>();
     }
 
     public void setSimboloInicial(String simbolo) {
@@ -64,19 +65,43 @@ public class GLC {
         }
     }
 
+    // Verifica la pertenencia de una cadena usando la derivación izquierda
+    public boolean pertenece(String cadena) {
+        if (simboloInicial == null) return false;
+
+        if (cadena.isEmpty() && producciones.getOrDefault(simboloInicial, Collections.emptyList()).contains("")) {
+            return true;
+        }
+
+        List<String> derivaciones = derivarIzquierda(cadena);
+        return !derivaciones.isEmpty() && derivaciones.get(derivaciones.size() - 1).equals(cadena);
+    }
+
     public List<String> derivarIzquierda(String objetivo) {
         List<String> derivaciones = new ArrayList<>();
         derivaciones.add(simboloInicial);
 
-        if (derivarIzquierdaRec(simboloInicial, objetivo, derivaciones, 0)) {
+        Set<String> visitados = new HashSet<>();
+
+        if (derivarIzquierdaRec(simboloInicial, objetivo, derivaciones, 0, visitados)) {
             return derivaciones;
         }
 
         return Arrays.asList("No se pudo derivar la cadena");
     }
 
-    private boolean derivarIzquierdaRec(String actual, String objetivo, List<String> derivaciones, int profundidad) {
-        if (profundidad > 100) return false;
+    private boolean derivarIzquierdaRec(String actual, String objetivo, List<String> derivaciones, int profundidad, Set<String> visitados) {
+        // 🚨 Límite de longitud: Si la cadena de derivación se hace mucho más larga que el objetivo, aborta.
+        if (actual.length() > objetivo.length() * 2 + 5 && contieneNoTerminal(actual)) {
+            return false;
+        }
+
+        if (profundidad > 500) return false;
+
+        // Detección de buclos: Rompe ciclos exactos de cadena.
+        if (visitados.contains(actual)) {
+            return false;
+        }
 
         if (actual.equals(objetivo)) {
             return true;
@@ -86,6 +111,7 @@ public class GLC {
             return false;
         }
 
+        // Busca el NO TERMINAL más a la izquierda
         int pos = -1;
         String noTerminal = null;
         for (int i = 0; i < actual.length(); i++) {
@@ -102,16 +128,29 @@ public class GLC {
         List<String> prods = producciones.get(noTerminal);
         if (prods == null) return false;
 
+        // Marcar el estado actual como visitado
+        visitados.add(actual);
+
         for (String prod : prods) {
             String nuevaCadena = actual.substring(0, pos) + prod + actual.substring(pos + 1);
+
+            // Optimización: Salta si la nueva cadena excede el límite.
+            if (nuevaCadena.length() > objetivo.length() * 2 + 5 && contieneNoTerminal(nuevaCadena)) {
+                continue;
+            }
+
             derivaciones.add(nuevaCadena);
 
-            if (derivarIzquierdaRec(nuevaCadena, objetivo, derivaciones, profundidad + 1)) {
+            if (derivarIzquierdaRec(nuevaCadena, objetivo, derivaciones, profundidad + 1, visitados)) {
                 return true;
             }
 
+            // Backtracking
             derivaciones.remove(derivaciones.size() - 1);
         }
+
+        // Desmarcar el estado actual
+        visitados.remove(actual);
 
         return false;
     }
@@ -120,15 +159,27 @@ public class GLC {
         List<String> derivaciones = new ArrayList<>();
         derivaciones.add(simboloInicial);
 
-        if (derivarDerechaRec(simboloInicial, objetivo, derivaciones, 0)) {
+        Set<String> visitados = new HashSet<>();
+
+        if (derivarDerechaRec(simboloInicial, objetivo, derivaciones, 0, visitados)) {
             return derivaciones;
         }
 
         return Arrays.asList("No se pudo derivar la cadena");
     }
 
-    private boolean derivarDerechaRec(String actual, String objetivo, List<String> derivaciones, int profundidad) {
-        if (profundidad > 100) return false;
+    private boolean derivarDerechaRec(String actual, String objetivo, List<String> derivaciones, int profundidad, Set<String> visitados) {
+        // 🚨 Límite de longitud
+        if (actual.length() > objetivo.length() * 2 + 5 && contieneNoTerminal(actual)) {
+            return false;
+        }
+
+        if (profundidad > 500) return false;
+
+        // Detección de buclos
+        if (visitados.contains(actual)) {
+            return false;
+        }
 
         if (actual.equals(objetivo)) {
             return true;
@@ -138,6 +189,7 @@ public class GLC {
             return false;
         }
 
+        // Busca el NO TERMINAL más a la derecha
         int pos = -1;
         String noTerminal = null;
         for (int i = actual.length() - 1; i >= 0; i--) {
@@ -154,22 +206,39 @@ public class GLC {
         List<String> prods = producciones.get(noTerminal);
         if (prods == null) return false;
 
+        // Marcar el estado actual como visitado
+        visitados.add(actual);
+
         for (String prod : prods) {
             String nuevaCadena = actual.substring(0, pos) + prod + actual.substring(pos + 1);
+
+            // Optimización: Salta si la nueva cadena excede el límite.
+            if (nuevaCadena.length() > objetivo.length() * 2 + 5 && contieneNoTerminal(nuevaCadena)) {
+                continue;
+            }
+
             derivaciones.add(nuevaCadena);
 
-            if (derivarDerechaRec(nuevaCadena, objetivo, derivaciones, profundidad + 1)) {
+            if (derivarDerechaRec(nuevaCadena, objetivo, derivaciones, profundidad + 1, visitados)) {
                 return true;
             }
 
+            // Backtracking
             derivaciones.remove(derivaciones.size() - 1);
         }
+
+        // Desmarcar el estado actual
+        visitados.remove(actual);
 
         return false;
     }
 
+    // --- Lógica del Árbol Sintáctico ---
+
     public NodoArbol generarArbolSintactico(String cadena) {
+        if (simboloInicial == null) return null;
         NodoArbol raiz = new NodoArbol(simboloInicial);
+        // El árbol solo necesita el objetivo final (la cadena) y la profundidad.
         if (construirArbolRec(raiz, cadena, 0)) {
             return raiz;
         }
@@ -177,12 +246,13 @@ public class GLC {
     }
 
     private boolean construirArbolRec(NodoArbol nodo, String objetivo, int profundidad) {
-        if (profundidad > 50) return false;
+        // ⚠️ Límite de profundidad estricto para evitar congelamiento en árbol
+        if (profundidad > 100) return false;
 
         String simbolo = nodo.getSimbolo();
 
         if (terminales.contains(simbolo.charAt(0))) {
-            return true;
+            return objetivo.startsWith(simbolo);
         }
 
         if (simbolo.equals("ε")) {
@@ -196,41 +266,66 @@ public class GLC {
             for (String prod : prods) {
                 nodo.getHijos().clear();
 
-                for (char c : prod.toCharArray()) {
-                    NodoArbol hijo = new NodoArbol(String.valueOf(c));
-                    nodo.agregarHijo(hijo);
+                if (prod.equals("ε")) {
+                    if (objetivo.isEmpty()) {
+                        nodo.agregarHijo(new NodoArbol("ε"));
+                        return true;
+                    }
+                    continue;
                 }
 
-                String derivado = obtenerCadenaDerivada(nodo);
-                if (derivado.replace("ε", "").equals(objetivo)) {
+                List<NodoArbol> nuevosHijos = new ArrayList<>();
+                for (char c : prod.toCharArray()) {
+                    nuevosHijos.add(new NodoArbol(String.valueOf(c)));
+                }
+
+                // Llamada a la función de coincidencia con las correcciones de partición
+                if (intentarCoincidencia(nuevosHijos, objetivo, profundidad + 1)) {
+                    nodo.getHijos().addAll(nuevosHijos);
                     return true;
                 }
-
-                boolean exito = true;
-                for (NodoArbol hijo : nodo.getHijos()) {
-                    if (!construirArbolRec(hijo, objetivo, profundidad + 1)) {
-                        exito = false;
-                        break;
-                    }
-                }
-
-                if (exito) return true;
             }
         }
-
         return false;
     }
 
-    private String obtenerCadenaDerivada(NodoArbol nodo) {
-        if (nodo.getHijos().isEmpty()) {
-            return nodo.getSimbolo();
+    private boolean intentarCoincidencia(List<NodoArbol> nodos, String objetivo, int profundidad) {
+        if (nodos.isEmpty()) {
+            return objetivo.isEmpty();
         }
 
-        StringBuilder sb = new StringBuilder();
-        for (NodoArbol hijo : nodo.getHijos()) {
-            sb.append(obtenerCadenaDerivada(hijo));
+        NodoArbol cabeza = nodos.get(0);
+        List<NodoArbol> cola = nodos.subList(1, nodos.size());
+
+        if (terminales.contains(cabeza.getSimbolo().charAt(0))) {
+            if (objetivo.startsWith(cabeza.getSimbolo())) {
+                String nuevoObjetivo = objetivo.substring(cabeza.getSimbolo().length());
+                return intentarCoincidencia(cola, nuevoObjetivo, profundidad);
+            }
+            return false;
+        } else { // Es No Terminal
+
+            // 🚨 Corrección de Partición (Split): Limita las pruebas de división
+            for (int i = 0; i <= objetivo.length(); i++) {
+                String subObjetivo = objetivo.substring(0, i);
+                String restoObjetivo = objetivo.substring(i);
+
+                // Evitar ciclos de recursividad vacía: Si la subcadena es vacía (i=0)
+                // y el resto de la cadena no es vacía, saltamos para evitar que un NT
+                // se expanda a epsilon o a otro NT recursivo sin consumir nada.
+                if (i == 0 && !restoObjetivo.isEmpty() && cabeza.getSimbolo().equals(simboloInicial)) {
+                    // Esto es una heurística para detener la recursión por la izquierda en el árbol.
+                    continue;
+                }
+
+                if (construirArbolRec(cabeza, subObjetivo, profundidad)) {
+                    if (intentarCoincidencia(cola, restoObjetivo, profundidad)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
         }
-        return sb.toString();
     }
 
     private boolean contieneNoTerminal(String cadena) {
@@ -241,6 +336,8 @@ public class GLC {
         }
         return false;
     }
+
+    // --- Métodos de Visualización y Acceso (Getters) ---
 
     public String visualizarArbol(NodoArbol raiz) {
         if (raiz == null) return "No se pudo generar el árbol";
@@ -262,23 +359,22 @@ public class GLC {
         }
     }
 
-    // Getters
-    public Set<String> getNoTerminales() { return noTerminales; }
-    public Set<Character> getTerminales() { return terminales; }
-    public String getSimboloInicial() { return simboloInicial; }
-    public Map<String, List<String>> getProducciones() { return producciones; }
-
     public String getProduccionesTexto() {
         StringBuilder sb = new StringBuilder();
         for (String nt : producciones.keySet()) {
             sb.append(nt).append(" → ");
             List<String> prods = producciones.get(nt);
             for (int i = 0; i < prods.size(); i++) {
-                sb.append(prods.get(i));
+                sb.append(prods.get(i).equals("") ? "ε" : prods.get(i));
                 if (i < prods.size() - 1) sb.append(" | ");
             }
             sb.append("\n");
         }
         return sb.toString();
     }
+
+    public Set<String> getNoTerminales() { return noTerminales; }
+    public Set<Character> getTerminales() { return terminales; }
+    public String getSimboloInicial() { return simboloInicial; }
+    public Map<String, List<String>> getProducciones() { return producciones; }
 }

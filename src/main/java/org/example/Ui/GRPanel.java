@@ -153,7 +153,17 @@ public class GRPanel extends BorderPane {
 
         Button convertirBtn = new Button("Convertir a AFD");
         convertirBtn.setStyle("-fx-background-color: #9C27B0; -fx-text-fill: white;");
-        convertirBtn.setOnAction(e -> convertirAAFD());
+        convertirBtn.setOnAction(e -> {
+            try {
+                convertirAAFD();
+            } catch (Exception ex) {
+                // Muestra un diálogo de error al usuario
+                mostrarError("Error al convertir o al mostrar el AFD: " + ex.getMessage());
+
+                // Opcional: Imprime el stack trace completo en la consola para depuración
+                ex.printStackTrace();
+            }
+        });
 
         buttonBox.getChildren().addAll(verificarBtn, derivarBtn, convertirBtn);
         testBox.getChildren().addAll(testLabel, cadenaField, buttonBox);

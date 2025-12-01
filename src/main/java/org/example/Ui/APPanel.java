@@ -6,7 +6,7 @@ import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
-import javafx.scene.shape.*;
+import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Font;
 import javafx.scene.text.Text;
 import javafx.stage.FileChooser;
@@ -21,7 +21,6 @@ public class APPanel extends BorderPane {
     private AutomataDePila ap;
     private TextArea outputArea;
     private Pane pilaPane;
-    private Pane automataPane;
 
     private TextField estadosField;
     private TextField alfabetoEntradaField;
@@ -138,39 +137,37 @@ public class APPanel extends BorderPane {
     }
 
     private VBox createVisualizationPanel() {
-        VBox panel = new VBox(12);
-        panel.setPadding(new Insets(10));
+        VBox panel = new VBox(15);
+        panel.setPadding(new Insets(20));
         panel.setAlignment(Pos.TOP_CENTER);
 
-        Label automataLabel = new Label("AUTÓMATA DE PILA");
-        automataLabel.setStyle("-fx-font-size: 15px; -fx-font-weight: bold;");
-
-        automataPane = new Pane();
-        automataPane.setPrefSize(420, 300);
-        automataPane.setStyle("-fx-border-color: #2196F3; -fx-border-width: 2;");
-
-        Label pilaLabel = new Label("PILA");
-        pilaLabel.setStyle("-fx-font-size: 14px; -fx-font-weight: bold;");
+        Label titleLabel = new Label("Visualización de la Pila");
+        titleLabel.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
 
         pilaPane = new Pane();
-        pilaPane.setPrefSize(300, 200);
-        pilaPane.setStyle("-fx-border-color: #4CAF50; -fx-border-width: 2;");
+        pilaPane.setPrefSize(300, 400);
+        pilaPane.setStyle("-fx-border-color: #cccccc; -fx-border-width: 2; " +
+                "-fx-background-color: #fafafa;");
 
-        VBox testBox = new VBox(8);
+        VBox testBox = new VBox(10);
         testBox.setAlignment(Pos.CENTER);
+        testBox.setPadding(new Insets(15));
+        testBox.setStyle("-fx-background-color: #e1f5fe; -fx-background-radius: 5;");
 
-        Label testLabel = new Label("Cadena:");
+        Label testLabel = new Label("Cadena a procesar:");
         testLabel.setStyle("-fx-font-weight: bold;");
 
         cadenaField = new TextField();
-        cadenaField.setPrefWidth(250);
+        cadenaField.setPromptText("Ingrese la cadena");
+        cadenaField.setPrefWidth(300);
 
-        Button procesarBtn = new Button("Procesar");
+        Button procesarBtn = new Button("Procesar Cadena");
+        procesarBtn.setStyle("-fx-background-color: #2196F3; -fx-text-fill: white;");
         procesarBtn.setOnAction(e -> procesarCadena());
 
         testBox.getChildren().addAll(testLabel, cadenaField, procesarBtn);
 
-        panel.getChildren().addAll(automataLabel, automataPane, pilaLabel, pilaPane, testBox);
+        panel.getChildren().addAll(titleLabel, pilaPane, testBox);
         return panel;
     }
 
@@ -194,7 +191,6 @@ public class APPanel extends BorderPane {
         limpiarBtn.setOnAction(e -> {
             outputArea.clear();
             pilaPane.getChildren().clear();
-            automataPane.getChildren().clear();
         });
 
         panel.getChildren().addAll(titleLabel, new Separator(), outputArea, limpiarBtn);
@@ -208,35 +204,31 @@ public class APPanel extends BorderPane {
             // Estados
             String[] estados = estadosField.getText().trim().split(",");
             for (String estado : estados) {
-                if (!estado.trim().isEmpty())
-                    ap.agregarEstado(estado.trim());
+                ap.agregarEstado(estado.trim());
             }
 
             // Alfabeto de entrada
             String alfabetoEntrada = alfabetoEntradaField.getText().trim();
             for (char c : alfabetoEntrada.toCharArray()) {
-                if (c != ' ') ap.agregarSimboloEntrada(c);
+                ap.agregarSimboloEntrada(c);
             }
 
             // Alfabeto de pila
             String alfabetoPila = alfabetoPilaField.getText().trim();
             for (char c : alfabetoPila.toCharArray()) {
-                if (c != ' ') ap.agregarSimboloPila(c);
+                ap.agregarSimboloPila(c);
             }
 
             // Estado inicial
-            String estInit = estadoInicialField.getText().trim();
-            if (!estInit.isEmpty()) ap.setEstadoInicial(estInit);
+            ap.setEstadoInicial(estadoInicialField.getText().trim());
 
             // Símbolo inicial de pila
-            String sInicial = simboloInicialPilaField.getText().trim();
-            if (!sInicial.isEmpty()) ap.setSimboloInicialPila(sInicial.charAt(0));
+            ap.setSimboloInicialPila(simboloInicialPilaField.getText().trim().charAt(0));
 
             // Estados finales
             String[] finales = estadosFinalesField.getText().trim().split(",");
             for (String estado : finales) {
-                if (!estado.trim().isEmpty())
-                    ap.agregarEstadoFinal(estado.trim());
+                ap.agregarEstadoFinal(estado.trim());
             }
 
             // Transiciones (formato: q0,a,Z,q1,XZ)
@@ -271,9 +263,6 @@ public class APPanel extends BorderPane {
             resultado.append("Transiciones definidas: ").append(ap.getTransiciones().size());
 
             outputArea.setText(resultado.toString());
-
-            // Dibuja el autómata usando la versión corregida
-            dibujarAutomata();
 
         } catch (Exception e) {
             mostrarError("Error al construir autómata: " + e.getMessage());
@@ -322,143 +311,49 @@ public class APPanel extends BorderPane {
         }
     }
 
-    private void dibujarAutomata() {
-        automataPane.getChildren().clear();
-
-        List<String> estados = new java.util.ArrayList<>(ap.getEstados());
-        if (estados.isEmpty()) return;
-
-        double cx = automataPane.getPrefWidth() / 2.0;
-        double cy = automataPane.getPrefHeight() / 2.0;
-        double radio = Math.min(cx, cy) - 60;
-        if (radio < 40) radio = 80;
-
-        java.util.Map<String, Circle> nodos = new java.util.HashMap<>();
-
-        // dibujar nodos
-        for (int i = 0; i < estados.size(); i++) {
-
-            double ang = 2 * Math.PI * i / estados.size();
-            double x = cx + radio * Math.cos(ang);
-            double y = cy + radio * Math.sin(ang);
-
-            Circle c = new Circle(x, y, 25);
-            c.setFill(Color.LIGHTBLUE);
-            c.setStroke(Color.DARKBLUE);
-            c.setStrokeWidth(2);
-
-            if (ap.getEstadosFinales().contains(estados.get(i))) {
-                c.setStroke(Color.GREEN);
-                c.setStrokeWidth(4);
-            }
-
-            if (ap.getEstadoInicial() != null && ap.getEstadoInicial().equals(estados.get(i))) {
-                c.setFill(Color.LIGHTGREEN);
-            }
-
-            Text t = new Text(x - 10, y + 5, estados.get(i));
-            t.setFont(Font.font(12));
-
-            nodos.put(estados.get(i), c);
-            automataPane.getChildren().addAll(c, t);
-        }
-
-        // --- CORRECCIÓN: iterar la lista de transiciones en vez de usar un forEach con dos parámetros ---
-        try {
-            // suponiendo que getTransiciones() devuelve List<AutomataDePila.Transicion>
-            List<AutomataDePila.Transicion> transList = ap.getTransiciones();
-
-            for (AutomataDePila.Transicion tr : transList) {
-                // intentamos acceder a los campos esperados (si tus nombres son distintos, ajusta aquí)
-                String origen = tr.estadoOrigen;        // campo público
-                String destino = tr.estadoDestino;     // campo público
-                Character simbolo = tr.simboloEntrada; // campo público (null -> ε)
-                char pila = tr.simboloPila;            // campo público
-                String apilar = tr.cadenaApilar;       // campo público
-
-                Circle c1 = nodos.get(origen);
-                Circle c2 = nodos.get(destino);
-                if (c1 == null || c2 == null) continue;
-
-                // línea simple entre centros
-                Line line = new Line(c1.getCenterX(), c1.getCenterY(), c2.getCenterX(), c2.getCenterY());
-                line.setStroke(Color.BLACK);
-
-                double mx = (c1.getCenterX() + c2.getCenterX()) / 2;
-                double my = (c1.getCenterY() + c2.getCenterY()) / 2;
-
-                // --- INICIO DE CORRECCIÓN PARA DIBUJAR FLECHA ---
-                // Vector desde origen a destino
-                double dx = c2.getCenterX() - c1.getCenterX();
-                double dy = c2.getCenterY() - c1.getCenterY();
-                double angle = Math.atan2(dy, dx);
-
-                // Coordenadas del punto de la línea que está en el borde del círculo de destino
-                double endX = c2.getCenterX() - 25 * Math.cos(angle);
-                double endY = c2.getCenterY() - 25 * Math.sin(angle);
-                line.setEndX(endX);
-                line.setEndY(endY);
-
-                // Triángulo para la punta de flecha
-                double arrowSize = 8.0;
-                Polygon arrowhead = new Polygon(
-                        endX, endY,
-                        endX - arrowSize * Math.cos(angle - Math.PI / 6), endY - arrowSize * Math.sin(angle - Math.PI / 6),
-                        endX - arrowSize * Math.cos(angle + Math.PI / 6), endY - arrowSize * Math.sin(angle + Math.PI / 6)
-                );
-                arrowhead.setFill(Color.BLACK);
-                // --- FIN DE CORRECCIÓN PARA DIBUJAR FLECHA ---
-
-
-                String etiqueta = (simbolo == null ? "ε" : simbolo) + "," + pila + "→" + (apilar == null || apilar.isEmpty() ? "ε" : apilar);
-                Text txt = new Text(mx, my, etiqueta);
-                txt.setFont(Font.font(11));
-
-                // Se agrega la punta de flecha
-                automataPane.getChildren().addAll(line, arrowhead, txt);
-            }
-        } catch (NoSuchMethodError | NoClassDefFoundError | ClassCastException ex) {
-            // Si por alguna razón la estructura de transiciones es diferente,
-            // evitamos que la UI se caiga; informa en el historial.
-            outputArea.appendText("\n⚠️ No se pudieron dibujar transiciones: estructura inesperada en getTransiciones().");
-        } catch (Exception ex) {
-            outputArea.appendText("\n⚠️ Error al dibujar transiciones: " + ex.getMessage());
-        }
-    }
-
     private void visualizarPila(AutomataDePila.ConfiguracionAP config) {
         pilaPane.getChildren().clear();
 
-        double startX = 20;
-        double startY = 150;
-        double cellHeight = 30;
-        double cellWidth = 80;
+        double width = pilaPane.getPrefWidth();
+        double cellHeight = 40;
+        double cellWidth = 100;
+        double startX = (width - cellWidth) / 2;
+        double startY = 50;
 
-        java.util.List<Character> pilaList = new java.util.ArrayList<>(config.pila);
+        Text titleText = new Text(startX - 20, 30, "Estado de la Pila");
+        titleText.setFont(Font.font("Arial", 14));
+        titleText.setStyle("-fx-font-weight: bold;");
+        pilaPane.getChildren().add(titleText);
+
+        List<Character> pilaList = new java.util.ArrayList<>(config.pila);
         java.util.Collections.reverse(pilaList);
 
         if (pilaList.isEmpty()) {
-            Text emptyText = new Text(startX + 20, startY + 50, "Pila vacía");
+            Text emptyText = new Text(startX + 20, startY + 100, "Pila vacía");
             emptyText.setFill(Color.GRAY);
             pilaPane.getChildren().add(emptyText);
-            return;
-        }
+        } else {
+            for (int i = 0; i < pilaList.size(); i++) {
+                double y = startY + (i * cellHeight);
 
-        for (int i = 0; i < pilaList.size(); i++) {
-            double y = startY + i * (cellHeight + 5);
+                Rectangle rect = new Rectangle(startX, y, cellWidth, cellHeight - 2);
+                rect.setFill(i == 0 ? Color.LIGHTGREEN : Color.LIGHTBLUE);
+                rect.setStroke(Color.DARKBLUE);
+                rect.setStrokeWidth(2);
 
-            Rectangle rect = new Rectangle(startX, y, cellWidth, cellHeight);
-            rect.setFill(i == 0 ? Color.LIGHTGREEN : Color.LIGHTBLUE);
-            rect.setStroke(Color.DARKBLUE);
+                Text text = new Text(startX + cellWidth/2 - 10, y + cellHeight/2 + 5,
+                        String.valueOf(pilaList.get(i)));
+                text.setFont(Font.font("Arial", 20));
+                text.setStyle("-fx-font-weight: bold;");
 
-            Text text = new Text(startX + cellWidth / 2 - 5, y + cellHeight / 2 + 5, String.valueOf(pilaList.get(i)));
-            text.setFont(Font.font(14));
-            pilaPane.getChildren().addAll(rect, text);
+                if (i == 0) {
+                    Text topeLabel = new Text(startX + cellWidth + 10, y + cellHeight/2 + 5, "← TOPE");
+                    topeLabel.setFill(Color.GREEN);
+                    topeLabel.setStyle("-fx-font-weight: bold;");
+                    pilaPane.getChildren().add(topeLabel);
+                }
 
-            if (i == 0) {
-                Text topeLabel = new Text(startX + cellWidth + 8, y + cellHeight / 2 + 5, "← TOPE");
-                topeLabel.setFill(Color.GREEN);
-                pilaPane.getChildren().add(topeLabel);
+                pilaPane.getChildren().addAll(rect, text);
             }
         }
     }
