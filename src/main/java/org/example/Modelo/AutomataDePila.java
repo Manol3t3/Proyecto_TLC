@@ -3,290 +3,240 @@ package org.example.Modelo;
 import java.util.*;
 
 /**
- * Clase que representa un Autómata de Pila (AP)
+ * Autómata de Pila genérico.
+ * Acepta ÚNICAMENTE si:
+ *   - se consumió TODA la entrada
+ *   - se está en un estado final
+ *   - la pila está VACÍA
+ * Si el usuario quiere solo “estado final” o solo “pila vacía”, puede
+ * desactivar el otro criterio con setAceptarPorPilaVacia(boolean).
  */
 public class AutomataDePila {
 
-    private Set<String> estados;
-    private Set<Character> alfabetoEntrada;
-    private Set<Character> alfabetoPila;
-    private Map<TransicionKey, List<TransicionValor>> transiciones;
+    /* ================= ATRIBUTOS ================= */
+    private final Set<String> estados = new HashSet<>();
+    private final Set<Character> alfabetoEntrada = new HashSet<>();
+    private final Set<Character> alfabetoPila = new HashSet<>();
+    private final Map<TransicionKey, List<TransicionValor>> transiciones = new HashMap<>();
+    private final Set<String> estadosFinales = new HashSet<>();
     private String estadoInicial;
-    private char simboloInicialPila;
-    private Set<String> estadosFinales;
-    private boolean aceptarPorPilaVacia;
+    private char simboloInicialPila = '\0';   // '\0'  ->  pila vacía inicial
+    private boolean aceptarPorPilaVacia = true; // se puede desactivar
 
-    // Para el historial de ejecución
-    private List<ConfiguracionAP> historial;
+    /* Historial para depurar / mostrar */
+    private final List<ConfiguracionAP> historial = new ArrayList<>();
+    private final List<String> transicionesAplicadas = new ArrayList<>();
+    private String cadenaOriginal;           // cadena que se está procesando
 
-    public AutomataDePila() {
-        this.estados = new HashSet<>();
-        this.alfabetoEntrada = new HashSet<>();
-        this.alfabetoPila = new HashSet<>();
-        this.transiciones = new HashMap<>();
-        this.estadosFinales = new HashSet<>();
-        this.historial = new ArrayList<>();
-        this.aceptarPorPilaVacia = true; // Por defecto acepta por pila vacía
-    }
-
-    /**
-     * Clase para la clave de transición (estado, símbolo entrada, símbolo pila)
-     * simboloPila = null representa ε (no sacar nada de la pila)
-     * simboloEntrada = null representa ε (transición sin consumir entrada)
-     */
+    /* ================= CLASES INTERNAS ================= */
     public static class TransicionKey {
-        public String estado;
-        public Character simboloEntrada; // null representa ε
-        public Character simboloPila;    // null representa ε
+        public final String estado;
+        public final Character simboloEntrada; // null == ε
+        public final Character simboloPila;    // null == ε
 
-        public TransicionKey(String estado, Character simboloEntrada, Character simboloPila) {
-            this.estado = estado;
-            this.simboloEntrada = simboloEntrada;
-            this.simboloPila = simboloPila;
+        public TransicionKey(String e, Character in, Character p) {
+            this.estado = e;
+            this.simboloEntrada = in;
+            this.simboloPila = p;
         }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
+        @Override public boolean equals(Object o) {
             if (!(o instanceof TransicionKey)) return false;
-            TransicionKey that = (TransicionKey) o;
-            return Objects.equals(estado, that.estado) &&
-                    Objects.equals(simboloEntrada, that.simboloEntrada) &&
-                    Objects.equals(simboloPila, that.simboloPila);
+            TransicionKey k = (TransicionKey) o;
+            return Objects.equals(estado, k.estado) &&
+                    Objects.equals(simboloEntrada, k.simboloEntrada) &&
+                    Objects.equals(simboloPila, k.simboloPila);
         }
-
-        @Override
-        public int hashCode() {
+        @Override public int hashCode() {
             return Objects.hash(estado, simboloEntrada, simboloPila);
         }
-
-        @Override
-        public String toString() {
-            String entrada = simboloEntrada == null ? "ε" : simboloEntrada.toString();
-            String pila = simboloPila == null ? "ε" : simboloPila.toString();
-            return String.format("(%s, %s, %s)", estado, entrada, pila);
+        @Override public String toString() {
+            String in = simboloEntrada == null ? "ε" : simboloEntrada.toString();
+            String p  = simboloPila    == null ? "ε" : simboloPila.toString();
+            return "(" + estado + ", " + in + ", " + p + ")";
         }
     }
 
-    /**
-     * Clase para el valor de transición (estado destino, cadena a apilar)
-     * cadenaApilar vacía representa ε (no apilar nada)
-     */
     public static class TransicionValor {
-        public String estadoDestino;
-        public String cadenaApilar; // puede ser vacía para no apilar nada
+        public final String estadoDestino;
+        public final String cadenaApilar;   // "" == ε
 
-        public TransicionValor(String estadoDestino, String cadenaApilar) {
-            this.estadoDestino = estadoDestino;
-            this.cadenaApilar = cadenaApilar;
+        public TransicionValor(String ed, String ap) {
+            this.estadoDestino = ed;
+            this.cadenaApilar  = ap;
         }
-
-        @Override
-        public String toString() {
-            return String.format("(%s, %s)", estadoDestino,
-                    cadenaApilar.isEmpty() ? "ε" : cadenaApilar);
+        @Override public String toString() {
+            return "(" + estadoDestino + ", " + (cadenaApilar.isEmpty() ? "ε" : cadenaApilar) + ")";
         }
     }
 
-    /**
-     * Clase para representar una configuración del AP
-     */
     public static class ConfiguracionAP {
-        public String estado;
-        public String cadenaRestante;
-        public Stack<Character> pila;
+        public final String estado;
+        public final String cadenaRestante;
+        public final Stack<Character> pila;
 
-        public ConfiguracionAP(String estado, String cadenaRestante, Stack<Character> pila) {
-            this.estado = estado;
-            this.cadenaRestante = cadenaRestante;
+        public ConfiguracionAP(String e, String cr, Stack<Character> p) {
+            this.estado = e;
+            this.cadenaRestante = cr;
             this.pila = new Stack<>();
-            this.pila.addAll(pila);
+            this.pila.addAll(p);
         }
-
         public String getPilaString() {
             if (pila.isEmpty()) return "ε";
             StringBuilder sb = new StringBuilder();
-            // Mostrar desde el tope hacia abajo (tope a la izquierda)
-            for (int i = pila.size() - 1; i >= 0; i--) {
-                sb.append(pila.get(i));
-            }
+            for (int i = pila.size() - 1; i >= 0; i--) sb.append(pila.get(i));
             return sb.toString();
         }
-
-        @Override
-        public String toString() {
-            String cadena = cadenaRestante.isEmpty() ? "ε" : cadenaRestante;
-            return String.format("(%s, %s, %s)", estado, cadena, getPilaString());
+        @Override public String toString() {
+            String cr = cadenaRestante.isEmpty() ? "ε" : cadenaRestante;
+            return "(" + estado + ", " + cr + ", " + getPilaString() + ")";
         }
     }
 
-    // Métodos de configuración
-    public void agregarEstado(String estado) {
-        estados.add(estado);
+    /* ================= MÉTODOS BÁSICOS ================= */
+    public void agregarEstado(String e)           { estados.add(e); }
+    public void agregarSimboloEntrada(char c)     { alfabetoEntrada.add(c); }
+    public void agregarSimboloPila(char c)        { alfabetoPila.add(c); }
+    public void setEstadoInicial(String e) {
+        if (!estados.contains(e)) throw new IllegalArgumentException("Estado no existe: " + e);
+        estadoInicial = e;
     }
-
-    public void agregarSimboloEntrada(char simbolo) {
-        alfabetoEntrada.add(simbolo);
+    public void setSimboloInicialPila(char c)     { simboloInicialPila = c; }
+    public void agregarEstadoFinal(String e) {
+        if (!estados.contains(e)) throw new IllegalArgumentException("Estado no existe: " + e);
+        estadosFinales.add(e);
     }
+    public void setAceptarPorPilaVacia(boolean b) { aceptarPorPilaVacia = b; }
 
-    public void agregarSimboloPila(char simbolo) {
-        alfabetoPila.add(simbolo);
-    }
+    public void agregarTransicion(String origen, Character entrada, Character pila,
+                                  String destino, String apilar) {
+        if (!estados.contains(origen) || !estados.contains(destino))
+            throw new IllegalArgumentException("Estados inválidos en transición");
+        if (entrada != null && !alfabetoEntrada.contains(entrada))
+            throw new IllegalArgumentException("Símbolo entrada no válido: " + entrada);
+        if (pila != null && !alfabetoPila.contains(pila))
+            throw new IllegalArgumentException("Símbolo pila no válido: " + pila);
 
-    public void setEstadoInicial(String estado) {
-        if (!estados.contains(estado)) {
-            throw new IllegalArgumentException("Estado no existe: " + estado);
-        }
-        this.estadoInicial = estado;
-    }
-
-    public void setSimboloInicialPila(char simbolo) {
-        this.simboloInicialPila = simbolo;
-        alfabetoPila.add(simbolo);
-    }
-
-    public void agregarEstadoFinal(String estado) {
-        if (!estados.contains(estado)) {
-            throw new IllegalArgumentException("Estado no existe: " + estado);
-        }
-        estadosFinales.add(estado);
-    }
-
-    public void setAceptarPorPilaVacia(boolean aceptarPorPilaVacia) {
-        this.aceptarPorPilaVacia = aceptarPorPilaVacia;
-    }
-
-    /**
-     * Agrega una transición
-     * @param estadoOrigen Estado actual
-     * @param simboloEntrada Símbolo a leer (null para ε)
-     * @param simboloPila Símbolo en el tope de la pila (null para ε)
-     * @param estadoDestino Estado siguiente
-     * @param cadenaApilar Cadena a apilar (vacía para no apilar)
-     */
-    public void agregarTransicion(String estadoOrigen, Character simboloEntrada,
-                                  Character simboloPila, String estadoDestino, String cadenaApilar) {
-        if (!estados.contains(estadoOrigen) || !estados.contains(estadoDestino)) {
-            throw new IllegalArgumentException("Estados no válidos");
-        }
-
-        TransicionKey key = new TransicionKey(estadoOrigen, simboloEntrada, simboloPila);
+        TransicionKey key = new TransicionKey(origen, entrada, pila);
         transiciones.putIfAbsent(key, new ArrayList<>());
-        transiciones.get(key).add(new TransicionValor(estadoDestino, cadenaApilar));
+        transiciones.get(key).add(new TransicionValor(destino, apilar));
     }
 
-    /**
-     * Procesa una cadena y determina si es aceptada según el documento
-     */
+    /* ================= PROCESAR ================= */
     public boolean procesar(String cadena) {
         historial.clear();
-
-        Stack<Character> pila = new Stack<>();
-        pila.push(simboloInicialPila);
-
-        return procesarRecursivo(estadoInicial, cadena, 0, pila);
+        transicionesAplicadas.clear();
+        cadenaOriginal = cadena;
+        Stack<Character> pila = new Stack<>();   // ← siempre vacía
+        return procesarRecursivo(estadoInicial, 0, pila, "");
     }
 
-    private boolean procesarRecursivo(String estadoActual, String cadena,
-                                      int pos, Stack<Character> pila) {
-        // Guardar configuración actual
-        String restante = pos < cadena.length() ? cadena.substring(pos) : "";
+    /**
+     * Back-tracking estándar.
+     * @param estadoActual estado actual
+     * @param pos          índice dentro de cadenaOriginal
+     * @param pila         copia de la pila (se clona en cada rama)
+     * @param transPrev    texto descriptivo de la transición que llegó aquí
+     */
+    private boolean procesarRecursivo(String estadoActual, int pos,
+                                      Stack<Character> pila, String transPrev) {
+
+        /* 1.  guardar configuración para mostrar */
+        String restante = (pos < cadenaOriginal.length())
+                ? cadenaOriginal.substring(pos) : "";
         historial.add(new ConfiguracionAP(estadoActual, restante, pila));
+        transicionesAplicadas.add(transPrev);
 
-        // CONDICIÓN DE ACEPTACIÓN según el documento:
-        // 1. Se ha consumido toda la cadena
-        // 2. Y (está en estado final O la pila está vacía)
-        if (pos == cadena.length()) {
-            if (estadosFinales.contains(estadoActual)) {
-                return true; // Acepta por estado final
-            }
-            if (aceptarPorPilaVacia && pila.isEmpty()) {
-                return true; // Acepta por pila vacía
-            }
+        /* 2.  condición de aceptación (solo al final de la entrada) */
+        if (pos == cadenaOriginal.length()) {
+            boolean enEstadoFinal = estadosFinales.contains(estadoActual);
+            boolean pilaVacia     = pila.isEmpty();
+            if (enEstadoFinal && (!aceptarPorPilaVacia || pilaVacia)) return true;
+            if (aceptarPorPilaVacia && pilaVacia) return true;
+            // si no se cumple ninguna → seguimos intentando ε-transiciones
         }
 
-        // Obtener el tope de la pila (null si está vacía)
-        Character topePila = pila.isEmpty() ? null : pila.peek();
-
-        // Probar transiciones que consumen un símbolo de entrada
-        if (pos < cadena.length()) {
-            char simboloActual = cadena.charAt(pos);
-            if (intentarTransiciones(estadoActual, simboloActual, topePila, cadena, pos + 1, pila)) {
+        /* 3.  transiciones que consumen un símbolo */
+        if (pos < cadenaOriginal.length()) {
+            char sim = cadenaOriginal.charAt(pos);
+            if (intentarTransiciones(estadoActual, sim, topePila(pila), pos + 1, pila))
                 return true;
-            }
         }
 
-        // Probar transiciones epsilon (sin consumir entrada)
-        if (intentarTransiciones(estadoActual, null, topePila, cadena, pos, pila)) {
+        /* 4.  ε-transiciones (sin consumir) */
+        if (intentarTransiciones(estadoActual, null, topePila(pila), pos, pila))
             return true;
-        }
 
-        return false;
+        return false;   // back-tracking
     }
 
-    private boolean intentarTransiciones(String estadoActual, Character simboloEntrada,
-                                         Character topePila, String cadena, int nuevoPos,
+    /* ---------- auxiliares ---------- */
+    private Character topePila(Stack<Character> p) {
+        return p.isEmpty() ? null : p.peek();
+    }
+
+    private boolean intentarTransiciones(String estadoActual, Character entrada,
+                                         Character topePila, int nuevoPos,
                                          Stack<Character> pilaOriginal) {
-        // Probar transición normal (con el tope actual)
-        TransicionKey keyNormal = new TransicionKey(estadoActual, simboloEntrada, topePila);
-        if (aplicarTransicion(keyNormal, cadena, nuevoPos, pilaOriginal)) {
-            return true;
-        }
+        TransicionKey keyNormal = new TransicionKey(estadoActual, entrada, topePila);
+        if (aplicarTransicion(keyNormal, nuevoPos, pilaOriginal)) return true;
 
-        // También probar transiciones con ε en la pila (cuando la pila no está vacía)
         if (topePila != null) {
-            TransicionKey keyEpsilonPila = new TransicionKey(estadoActual, simboloEntrada, null);
-            if (aplicarTransicion(keyEpsilonPila, cadena, nuevoPos, pilaOriginal)) {
-                return true;
-            }
+            TransicionKey keyEpsilonPila = new TransicionKey(estadoActual, entrada, null);
+            if (aplicarTransicion(keyEpsilonPila, nuevoPos, pilaOriginal)) return true;
         }
-
         return false;
     }
 
-    private boolean aplicarTransicion(TransicionKey key, String cadena, int nuevoPos,
+    private boolean aplicarTransicion(TransicionKey key, int nuevoPos,
                                       Stack<Character> pilaOriginal) {
-        if (!transiciones.containsKey(key)) {
-            return false;
-        }
+        if (!transiciones.containsKey(key)) return false;
 
-        // Probar todas las transiciones posibles para esta clave
-        for (TransicionValor trans : transiciones.get(key)) {
-            // Crear una copia de la pila para esta rama de ejecución
+        for (TransicionValor val : transiciones.get(key)) {
             Stack<Character> nuevaPila = new Stack<>();
             nuevaPila.addAll(pilaOriginal);
 
-            // Manejo de la pila según la transición
+            /* pop */
             if (key.simboloPila != null) {
-                // Si la transición especifica un símbolo de pila, debemos sacarlo
-                if (nuevaPila.isEmpty()) {
-                    continue; // No se puede sacar de una pila vacía
-                }
+                if (nuevaPila.isEmpty()) continue;
                 char sacado = nuevaPila.pop();
-                if (sacado != key.simboloPila) {
-                    continue; // El tope no coincide con el esperado
-                }
+                if (sacado != key.simboloPila) continue;
             }
-            // Si key.simboloPila es null (ε), no sacamos nada
-
-            // Apilar la nueva cadena (si no es vacía)
-            if (!trans.cadenaApilar.isEmpty()) {
-                // Apilar en orden inverso (el último carácter queda en el tope)
-                for (int i = trans.cadenaApilar.length() - 1; i >= 0; i--) {
-                    nuevaPila.push(trans.cadenaApilar.charAt(i));
+            /* push */
+            if (!val.cadenaApilar.isEmpty()) {
+                for (int i = val.cadenaApilar.length() - 1; i >= 0; i--) {
+                    nuevaPila.push(val.cadenaApilar.charAt(i));
                 }
             }
 
-            // Llamada recursiva
-            if (procesarRecursivo(trans.estadoDestino, cadena, nuevoPos, nuevaPila)) {
+            String transDescr = key + " → " + val;
+            if (procesarRecursivo(val.estadoDestino, nuevoPos, nuevaPila, transDescr))
                 return true;
-            }
         }
-
         return false;
     }
 
-    // Getters
+    /* ---------- mensajes claros ---------- */
+    public String getMotivoAceptacion(String estadoActual, int pos, Stack<Character> pila) {
+        if (pos == cadenaOriginal.length()) {
+            boolean fin = estadosFinales.contains(estadoActual);
+            boolean vac = pila.isEmpty();
+            if (fin && (!aceptarPorPilaVacia || vac)) return "Aceptada por estado final";
+            if (aceptarPorPilaVacia && vac) return "Aceptada por pila vacía";
+        }
+        return "Aceptada";
+    }
+
+    public String getMotivoRechazo(String estadoActual, int pos, Stack<Character> pila) {
+        if (pos != cadenaOriginal.length())
+            return "No se consumió toda la entrada";
+        if (!estadosFinales.contains(estadoActual) && !(aceptarPorPilaVacia && pila.isEmpty()))
+            return "No se llegó a estado final ni pila vacía";
+        if (estadosFinales.contains(estadoActual) && aceptarPorPilaVacia && !pila.isEmpty())
+            return "Estado final pero pila NO vacía";
+        return "Rechazada";
+    }
+
+    /* ---------- getters ---------- */
     public Set<String> getEstados() { return estados; }
     public Set<Character> getAlfabetoEntrada() { return alfabetoEntrada; }
     public Set<Character> getAlfabetoPila() { return alfabetoPila; }
@@ -294,6 +244,7 @@ public class AutomataDePila {
     public String getEstadoInicial() { return estadoInicial; }
     public char getSimboloInicialPila() { return simboloInicialPila; }
     public Set<String> getEstadosFinales() { return estadosFinales; }
-    public List<ConfiguracionAP> getHistorial() { return historial; }
     public boolean isAceptarPorPilaVacia() { return aceptarPorPilaVacia; }
+    public List<ConfiguracionAP> getHistorial() { return historial; }
+    public List<String> getTransicionesAplicadas() { return transicionesAplicadas; }
 }
