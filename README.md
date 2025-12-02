@@ -4,7 +4,7 @@ Este proyecto consiste en el desarrollo de un entorno gráfico interactivo dise�
 
 # Objetivo del proyecto:
 Desarrollar una plataforma interactiva que permita comprender, construir y simular los modelos fundamentales de la Teoría de la Computación, fortaleciendo el aprendizaje mediante visualización y práctica guiada.
-# [MANUAL DE USUARIO] (https://docs.google.com/document/d/10dUA0QkagRIdiicMRPBsvKZ1ZOBnbEHPBPp2R2ZNrak/edit?usp=sharing)
+## [MANUAL DE USUARIO](https://docs.google.com/document/d/10dUA0QkagRIdiicMRPBsvKZ1ZOBnbEHPBPp2R2ZNrak/edit?usp=sharing)
 # 1. Modo AFD (Autómata Finito Determinista)
 Permite definir completamente un autómata ingresando:
 Alfabeto de entrada
