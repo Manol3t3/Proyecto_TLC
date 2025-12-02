@@ -1,424 +1,368 @@
 package org.example.Ui;
 
+import javafx.scene.shape.Rectangle;
 import org.example.Modelo.AutomataDePila;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
-import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Font;
 import javafx.scene.text.Text;
 import javafx.stage.FileChooser;
-import java.io.*;
-import java.util.List;
 
-/**
- * Panel de interfaz para Autómatas de Pila
- */
+import java.io.*;
+import java.util.*;
+
 public class APPanel extends BorderPane {
 
-    private AutomataDePila ap;
+    private AutomataDePila ap = new AutomataDePila();
+
     private TextArea outputArea;
+    private ScrollPane pilaScroll;
     private Pane pilaPane;
+    private TableView<TransicionRow> transicionTable;
 
-    private TextField estadosField;
-    private TextField alfabetoEntradaField;
-    private TextField alfabetoPilaField;
-    private TextField estadoInicialField;
-    private TextField simboloInicialPilaField;
-    private TextField estadosFinalesField;
+    private TextField estadosField, alfabetoEntradaField, alfabetoPilaField,
+            estadoInicialField, estadosFinalesField, cadenaField;
     private TextArea transicionesArea;
-    private TextField cadenaField;
 
-    public APPanel() {
-        this.ap = new AutomataDePila();
-        initUI();
-    }
+    public APPanel() { initUI(); }
 
     private void initUI() {
         setPadding(new Insets(15));
-
-        VBox leftPanel = createDefinitionPanel();
-        VBox centerPanel = createVisualizationPanel();
-        VBox rightPanel = createResultsPanel();
-
-        setLeft(leftPanel);
-        setCenter(centerPanel);
-        setRight(rightPanel);
+        setLeft(createDefinitionPanel());
+        setCenter(createVisualizationPanel());
+        setRight(createResultsPanel());
     }
 
     private VBox createDefinitionPanel() {
         VBox panel = new VBox(10);
         panel.setPadding(new Insets(10));
-        panel.setPrefWidth(320);
-        panel.setStyle("-fx-background-color: #f0f0f0; -fx-background-radius: 5;");
+        panel.setPrefWidth(350);
+        panel.setStyle("-fx-background-color: #f9f9f9; -fx-border-radius: 5;");
 
-        Label titleLabel = new Label("Definición del Autómata de Pila");
-        titleLabel.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
+        Label title = new Label("Definición del Autómata de Pila");
+        title.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
 
-        Label estadosLabel = new Label("Estados (separados por comas):");
-        estadosField = new TextField();
-        estadosField.setPromptText("q0,q1,q2");
-
-        Label alfabetoEntradaLabel = new Label("Alfabeto de entrada:");
-        alfabetoEntradaField = new TextField();
-        alfabetoEntradaField.setPromptText("ab");
-
-        Label alfabetoPilaLabel = new Label("Alfabeto de pila:");
-        alfabetoPilaField = new TextField();
-        alfabetoPilaField.setPromptText("XZ");
-
-        Label estadoInicialLabel = new Label("Estado inicial:");
-        estadoInicialField = new TextField();
-        estadoInicialField.setPromptText("q0");
-
-        Label simboloInicialPilaLabel = new Label("Símbolo inicial de pila:");
-        simboloInicialPilaField = new TextField();
-        simboloInicialPilaField.setPromptText("Z");
-
-        Label estadosFinalesLabel = new Label("Estados finales:");
-        estadosFinalesField = new TextField();
-        estadosFinalesField.setPromptText("q2");
-
-        Label transicionesLabel = new Label("Transiciones:");
-        Label formatoLabel = new Label("Formato: q0,a,Z,q1,XZ");
-        formatoLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #666;");
-        Label formatoLabel2 = new Label("(usar 'e' para epsilon)");
-        formatoLabel2.setStyle("-fx-font-size: 11px; -fx-text-fill: #666;");
+        estadosField = createTField("q0,q1");
+        alfabetoEntradaField = createTField("()");
+        alfabetoPilaField = createTField("X");
+        estadoInicialField = createTField("q0");
+        estadosFinalesField = createTField("q1");
 
         transicionesArea = new TextArea();
-        transicionesArea.setPromptText("q0,a,Z,q0,XZ\nq0,e,Z,q1,e");
         transicionesArea.setPrefRowCount(6);
 
-        Label ejemploLabel = new Label(
-                "Ejemplo a^n b^n:\n" +
-                        "q0,a,Z,q0,XZ\n" +
-                        "q0,a,X,q0,XX\n" +
-                        "q0,b,X,q1,e\n" +
-                        "q1,b,X,q1,e\n" +
-                        "q1,e,Z,q2,e"
-        );
-        ejemploLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #888; " +
-                "-fx-background-color: #ffffcc; -fx-padding: 5;");
-
         Button construirBtn = new Button("Construir Autómata");
-        construirBtn.setMaxWidth(Double.MAX_VALUE);
         construirBtn.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white;");
+        construirBtn.setMaxWidth(Double.MAX_VALUE);
         construirBtn.setOnAction(e -> construirAutomata());
 
-        HBox fileButtons = new HBox(5);
+        HBox ejemplos = new HBox(5);
+        Button parBtn = new Button("Paréntesis balanceados");
+        parBtn.setOnAction(ev -> cargarEjemploCorregido());
+        ejemplos.getChildren().addAll(parBtn);
+
+        HBox fileBar = new HBox(5);
         Button cargarBtn = new Button("Cargar");
         Button guardarBtn = new Button("Guardar");
-        cargarBtn.setOnAction(e -> cargarDesdeArchivo());
-        guardarBtn.setOnAction(e -> guardarEnArchivo());
-        fileButtons.getChildren().addAll(cargarBtn, guardarBtn);
+        cargarBtn.setOnAction(ev -> cargarDesdeArchivo());
+        guardarBtn.setOnAction(ev -> guardarEnArchivo());
+        fileBar.getChildren().addAll(cargarBtn, guardarBtn);
 
         panel.getChildren().addAll(
-                titleLabel,
+                title,
                 new Separator(),
-                estadosLabel, estadosField,
-                alfabetoEntradaLabel, alfabetoEntradaField,
-                alfabetoPilaLabel, alfabetoPilaField,
-                estadoInicialLabel, estadoInicialField,
-                simboloInicialPilaLabel, simboloInicialPilaField,
-                estadosFinalesLabel, estadosFinalesField,
-                transicionesLabel, formatoLabel, formatoLabel2,
-                transicionesArea,
-                ejemploLabel,
+                createLabeled("Estados", estadosField),
+                createLabeled("Alfabeto entrada", alfabetoEntradaField),
+                createLabeled("Alfabeto pila", alfabetoPilaField),
+                createLabeled("Estado inicial", estadoInicialField),
+                createLabeled("Estados finales", estadosFinalesField),
+                createLabeled("Transiciones", transicionesArea),
+                ejemplos,
                 construirBtn,
-                fileButtons
+                fileBar
         );
-
-        ScrollPane scrollPane = new ScrollPane(panel);
-        scrollPane.setFitToWidth(true);
-        VBox container = new VBox(scrollPane);
-        return container;
+        return new VBox(new ScrollPane(panel));
     }
 
     private VBox createVisualizationPanel() {
         VBox panel = new VBox(15);
-        panel.setPadding(new Insets(20));
+        panel.setPadding(new Insets(10));
         panel.setAlignment(Pos.TOP_CENTER);
+        panel.setPrefWidth(500);
 
-        Label titleLabel = new Label("Visualización de la Pila");
-        titleLabel.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
+        pilaScroll = new ScrollPane();
+        pilaScroll.setPrefSize(400, 250);
+        pilaScroll.setStyle("-fx-border-color: #ccc; -fx-background-color: #ffffff;");
+        pilaScroll.setFitToWidth(true);
+        pilaScroll.setFitToHeight(false);
 
         pilaPane = new Pane();
-        pilaPane.setPrefSize(300, 400);
-        pilaPane.setStyle("-fx-border-color: #cccccc; -fx-border-width: 2; " +
-                "-fx-background-color: #fafafa;");
+        pilaPane.setPrefSize(400, 50);
+        pilaScroll.setContent(pilaPane);
 
-        VBox testBox = new VBox(10);
-        testBox.setAlignment(Pos.CENTER);
-        testBox.setPadding(new Insets(15));
-        testBox.setStyle("-fx-background-color: #e1f5fe; -fx-background-radius: 5;");
-
-        Label testLabel = new Label("Cadena a procesar:");
-        testLabel.setStyle("-fx-font-weight: bold;");
-
-        cadenaField = new TextField();
-        cadenaField.setPromptText("Ingrese la cadena");
-        cadenaField.setPrefWidth(300);
-
-        Button procesarBtn = new Button("Procesar Cadena");
+        cadenaField = createTField("()()");
+        Button procesarBtn = new Button("Procesar");
         procesarBtn.setStyle("-fx-background-color: #2196F3; -fx-text-fill: white;");
         procesarBtn.setOnAction(e -> procesarCadena());
 
-        testBox.getChildren().addAll(testLabel, cadenaField, procesarBtn);
+        transicionTable = new TableView<>();
+        TableColumn<TransicionRow, String> c1 = new TableColumn<>("Estado");
+        TableColumn<TransicionRow, String> c2 = new TableColumn<>("Entrada");
+        TableColumn<TransicionRow, String> c3 = new TableColumn<>("Pila");
+        TableColumn<TransicionRow, String> c4 = new TableColumn<>("→");
+        TableColumn<TransicionRow, String> c5 = new TableColumn<>("Destino");
+        TableColumn<TransicionRow, String> c6 = new TableColumn<>("Apilar");
+        c1.setCellValueFactory(d -> d.getValue().estado);
+        c2.setCellValueFactory(d -> d.getValue().entrada);
+        c3.setCellValueFactory(d -> d.getValue().pila);
+        c4.setCellValueFactory(d -> d.getValue().flecha);
+        c5.setCellValueFactory(d -> d.getValue().destino);
+        c6.setCellValueFactory(d -> d.getValue().apilar);
+        transicionTable.getColumns().addAll(c1, c2, c3, c4, c5, c6);
+        transicionTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
 
-        panel.getChildren().addAll(titleLabel, pilaPane, testBox);
+        panel.getChildren().addAll(new Label("Visualización"), pilaScroll,
+                new Label("Tabla de transiciones"), transicionTable,
+                new Label("Probar cadena"), cadenaField, procesarBtn);
         return panel;
     }
 
     private VBox createResultsPanel() {
-        VBox panel = new VBox(10);
-        panel.setPadding(new Insets(10));
-        panel.setPrefWidth(350);
-        panel.setStyle("-fx-background-color: #f0f0f0; -fx-background-radius: 5;");
-
-        Label titleLabel = new Label("Historial de Ejecución");
-        titleLabel.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
-
+        VBox v = new VBox(10);
+        v.setPadding(new Insets(10));
+        v.setPrefWidth(350);
         outputArea = new TextArea();
-        outputArea.setEditable(false);
-        outputArea.setPrefRowCount(30);
-        outputArea.setWrapText(true);
-        outputArea.setStyle("-fx-font-family: 'Courier New'; -fx-font-size: 11px;");
-
-        Button limpiarBtn = new Button("Limpiar");
-        limpiarBtn.setMaxWidth(Double.MAX_VALUE);
-        limpiarBtn.setOnAction(e -> {
-            outputArea.clear();
-            pilaPane.getChildren().clear();
-        });
-
-        panel.getChildren().addAll(titleLabel, new Separator(), outputArea, limpiarBtn);
-        return panel;
+        outputArea.setPrefRowCount(15);
+        Button limpiar = new Button("Limpiar");
+        limpiar.setOnAction(e -> { outputArea.clear(); pilaPane.getChildren().clear(); });
+        v.getChildren().addAll(new Label("Historial y resultados"), outputArea, limpiar);
+        return v;
     }
 
+    /* --------------------- EJEMPLO CORREGIDO --------------------- */
+    private void cargarEjemploCorregido() {
+        estadosField.setText("q0");
+        alfabetoEntradaField.setText("()");
+        alfabetoPilaField.setText("X");
+        estadoInicialField.setText("q0");
+        estadosFinalesField.setText("q0");
+        transicionesArea.setText(
+                "q0,(,e,q0,X\n" +
+                        "q0,),X,q0,e\n"
+        );
+        cadenaField.setText("()()");  // ← acepta
+        construirAutomata();
+    }
+
+    /* --------------------- CONSTRUIR --------------------- */
     private void construirAutomata() {
         try {
             ap = new AutomataDePila();
 
-            // Estados
-            String[] estados = estadosField.getText().trim().split(",");
-            for (String estado : estados) {
-                ap.agregarEstado(estado.trim());
-            }
-
-            // Alfabeto de entrada
-            String alfabetoEntrada = alfabetoEntradaField.getText().trim();
-            for (char c : alfabetoEntrada.toCharArray()) {
-                ap.agregarSimboloEntrada(c);
-            }
-
-            // Alfabeto de pila
-            String alfabetoPila = alfabetoPilaField.getText().trim();
-            for (char c : alfabetoPila.toCharArray()) {
-                ap.agregarSimboloPila(c);
-            }
-
-            // Estado inicial
+            for (String e : estadosField.getText().split(",")) ap.agregarEstado(e.trim());
+            for (char c : alfabetoEntradaField.getText().toCharArray()) ap.agregarSimboloEntrada(c);
+            for (char c : alfabetoPilaField.getText().toCharArray()) ap.agregarSimboloPila(c);
             ap.setEstadoInicial(estadoInicialField.getText().trim());
 
-            // Símbolo inicial de pila
-            ap.setSimboloInicialPila(simboloInicialPilaField.getText().trim().charAt(0));
+            // ← SIEMPRE pila vacía inicial
+            ap.setSimboloInicialPila('\0');
 
-            // Estados finales
-            String[] finales = estadosFinalesField.getText().trim().split(",");
-            for (String estado : finales) {
-                ap.agregarEstadoFinal(estado.trim());
+            for (String f : estadosFinalesField.getText().split(",")) ap.agregarEstadoFinal(f.trim());
+            ap.setAceptarPorPilaVacia(true);   // aceptación por pila vacía activada
+
+            transicionTable.getItems().clear();
+            String[] lineas = transicionesArea.getText().split("\n");
+            for (String l : lineas) {
+                String[] p = l.split(",");
+                if (p.length != 5) continue;
+                Character entrada = p[1].trim().equals("e") ? null : p[1].charAt(0);
+                Character pila    = p[2].trim().equals("e") ? null : p[2].charAt(0);
+                String apilar     = p[4].trim().equals("e") ? "" : p[4].trim();
+                ap.agregarTransicion(p[0].trim(), entrada, pila, p[3].trim(), apilar);
+
+                transicionTable.getItems().add(new TransicionRow(
+                        p[0].trim(),
+                        entrada == null ? "ε" : entrada.toString(),
+                        pila    == null ? "ε" : pila.toString(),
+                        "→",
+                        p[3].trim(),
+                        apilar.isEmpty() ? "ε" : apilar
+                ));
             }
 
-            // Transiciones (formato: q0,a,Z,q1,XZ)
-            String[] transiciones = transicionesArea.getText().trim().split("\n");
-            for (String trans : transiciones) {
-                if (trans.trim().isEmpty()) continue;
+            outputArea.setText("✓ Autómata construido (pila vacía inicial)\n");
+            mostrarPilaInicial();
 
-                String[] partes = trans.trim().split(",");
-                if (partes.length != 5) continue;
-
-                String estadoOrigen = partes[0].trim();
-                String simboloEntrada = partes[1].trim();
-                char simboloPila = partes[2].trim().charAt(0);
-                String estadoDestino = partes[3].trim();
-                String cadenaApilar = partes[4].trim();
-
-                // 'e' representa epsilon
-                Character simbolo = simboloEntrada.equals("e") ? null : simboloEntrada.charAt(0);
-                String apilar = cadenaApilar.equals("e") ? "" : cadenaApilar;
-
-                ap.agregarTransicion(estadoOrigen, simbolo, simboloPila, estadoDestino, apilar);
-            }
-
-            StringBuilder resultado = new StringBuilder();
-            resultado.append("✓ Autómata de Pila construido!\n\n");
-            resultado.append("Estados: ").append(ap.getEstados()).append("\n");
-            resultado.append("Alfabeto entrada: ").append(ap.getAlfabetoEntrada()).append("\n");
-            resultado.append("Alfabeto pila: ").append(ap.getAlfabetoPila()).append("\n");
-            resultado.append("Estado inicial: ").append(ap.getEstadoInicial()).append("\n");
-            resultado.append("Símbolo inicial pila: ").append(ap.getSimboloInicialPila()).append("\n");
-            resultado.append("Estados finales: ").append(ap.getEstadosFinales()).append("\n\n");
-            resultado.append("Transiciones definidas: ").append(ap.getTransiciones().size());
-
-            outputArea.setText(resultado.toString());
-
-        } catch (Exception e) {
-            mostrarError("Error al construir autómata: " + e.getMessage());
+        } catch (Exception ex) {
+            Alert alert = new Alert(Alert.AlertType.ERROR, "Error al construir:\n" + ex.getMessage());
+            alert.showAndWait();
         }
     }
 
+    /* --------------------- PROCESAR --------------------- */
     private void procesarCadena() {
-        String cadena = cadenaField.getText().trim();
+        String cadena = cadenaField.getText();
+        if (cadena.isEmpty()) return;
 
-        if (ap.getEstados().isEmpty()) {
-            mostrarError("Primero debe construir el autómata");
+        boolean aceptada = ap.procesar(cadena);
+        outputArea.clear();
+
+        if (aceptada) {
+            outputArea.appendText("✅ CADENA ACEPTADA\n");
+            String motivo = ap.getMotivoAceptacion(ap.getHistorial().get(ap.getHistorial().size() - 1).estado,
+                    cadena.length(),
+                    ap.getHistorial().get(ap.getHistorial().size() - 1).pila);
+            outputArea.appendText("Motivo: " + motivo + "\n\n");
+        } else {
+            outputArea.appendText("❌ CADENA RECHAZADA\n");
+            String motivo = ap.getMotivoRechazo(ap.getHistorial().get(ap.getHistorial().size() - 1).estado,
+                    cadena.length(),
+                    ap.getHistorial().get(ap.getHistorial().size() - 1).pila);
+            outputArea.appendText("Motivo: " + motivo + "\n\n");
+        }
+
+        List<AutomataDePila.ConfiguracionAP> hist = ap.getHistorial();
+        List<String> trApl = ap.getTransicionesAplicadas();
+        for (int i = 0; i < hist.size(); i++) {
+            outputArea.appendText("Paso " + i + ": " + hist.get(i) + "\n");
+            if (i < trApl.size() && !trApl.get(i).isEmpty())
+                outputArea.appendText("      Transición: " + trApl.get(i) + "\n");
+        }
+        if (!hist.isEmpty()) mostrarPila(hist.get(hist.size() - 1).pila);
+    }
+
+    /* --------------------- VISUAL --------------------- */
+    private void mostrarPilaInicial() {
+        pilaPane.getChildren().clear();
+        Text t = new Text(150, 100, "Pila inicial: vacía");
+        t.setFont(Font.font(18)); t.setFill(Color.GRAY);
+        pilaPane.getChildren().add(t);
+        pilaPane.setPrefHeight(250);
+        pilaScroll.setVvalue(0);
+    }
+
+    private void mostrarPila(Stack<Character> pila) {
+        pilaPane.getChildren().clear();
+
+        final double ANCHO_RECT  = 100;
+        final double ALTO_RECT   = 30;
+        final double MARGEN_SUP  = 20;
+        final double SEP_VERT    = 5;
+
+        // ← Mensaje visual si está en estado final pero pila NO vacía
+        String estadoActual = ap.getHistorial().get(ap.getHistorial().size() - 1).estado;
+        if (ap.getEstadosFinales().contains(estadoActual) && !pila.isEmpty()) {
+            Text warning = new Text(10, 15, "⚠ Estado final pero pila NO vacía → RECHAZADO");
+            warning.setFill(Color.RED);
+            warning.setFont(Font.font(14));
+            pilaPane.getChildren().add(warning);
+        }
+
+        if (pila.isEmpty()) {
+            Text t = new Text(150, 100, "PILA VACÍA");
+            t.setFont(Font.font(20)); t.setFill(Color.GREEN);
+            pilaPane.getChildren().add(t);
+            pilaPane.setPrefHeight(250);
+            pilaScroll.setVvalue(0);
             return;
         }
 
-        boolean aceptada = ap.procesar(cadena);
-        List<AutomataDePila.ConfiguracionAP> historial = ap.getHistorial();
+        List<Character> elems = new ArrayList<>(pila);
+        Collections.reverse(elems);
+        double alturaTotal = MARGEN_SUP + 20 + elems.size() * (ALTO_RECT + SEP_VERT);
+        pilaPane.setPrefHeight(alturaTotal);
+        pilaScroll.setVvalue(0);
 
-        StringBuilder resultado = new StringBuilder();
-        resultado.append("═══════════════════════════════\n");
-        resultado.append("EJECUCIÓN DEL AUTÓMATA DE PILA\n");
-        resultado.append("Cadena: \"").append(cadena).append("\"\n");
-        resultado.append("═══════════════════════════════\n\n");
-
-        resultado.append("Configuraciones:\n");
-        resultado.append(String.format("%-8s %-15s %-20s\n", "Paso", "Estado", "Pila"));
-        resultado.append("─".repeat(50)).append("\n");
-
-        for (int i = 0; i < historial.size(); i++) {
-            AutomataDePila.ConfiguracionAP config = historial.get(i);
-            resultado.append(String.format("%-8d %-15s %-20s\n",
-                    i, config.estado, config.getPilaString()));
-        }
-
-        resultado.append("\n");
-        if (aceptada) {
-            resultado.append("✓ CADENA ACEPTADA\n");
-        } else {
-            resultado.append("✗ CADENA RECHAZADA\n");
-        }
-
-        outputArea.setText(resultado.toString());
-
-        // Visualizar la pila final
-        if (!historial.isEmpty()) {
-            visualizarPila(historial.get(historial.size() - 1));
+        for (int i = 0; i < elems.size(); i++) {
+            double y = MARGEN_SUP + 20 + i * (ALTO_RECT + SEP_VERT);
+            Rectangle r = new Rectangle(150, y, ANCHO_RECT, ALTO_RECT);
+            r.setFill(i == 0 ? Color.LIGHTCORAL : Color.LIGHTGREEN);
+            r.setStroke(Color.GRAY);
+            Text txt = new Text(150 + ANCHO_RECT / 2 - 5, y + ALTO_RECT / 2 + 5,
+                    elems.get(i).toString());
+            txt.setFont(Font.font(14));
+            pilaPane.getChildren().addAll(r, txt);
         }
     }
 
-    private void visualizarPila(AutomataDePila.ConfiguracionAP config) {
-        pilaPane.getChildren().clear();
-
-        double width = pilaPane.getPrefWidth();
-        double cellHeight = 40;
-        double cellWidth = 100;
-        double startX = (width - cellWidth) / 2;
-        double startY = 50;
-
-        Text titleText = new Text(startX - 20, 30, "Estado de la Pila");
-        titleText.setFont(Font.font("Arial", 14));
-        titleText.setStyle("-fx-font-weight: bold;");
-        pilaPane.getChildren().add(titleText);
-
-        List<Character> pilaList = new java.util.ArrayList<>(config.pila);
-        java.util.Collections.reverse(pilaList);
-
-        if (pilaList.isEmpty()) {
-            Text emptyText = new Text(startX + 20, startY + 100, "Pila vacía");
-            emptyText.setFill(Color.GRAY);
-            pilaPane.getChildren().add(emptyText);
-        } else {
-            for (int i = 0; i < pilaList.size(); i++) {
-                double y = startY + (i * cellHeight);
-
-                Rectangle rect = new Rectangle(startX, y, cellWidth, cellHeight - 2);
-                rect.setFill(i == 0 ? Color.LIGHTGREEN : Color.LIGHTBLUE);
-                rect.setStroke(Color.DARKBLUE);
-                rect.setStrokeWidth(2);
-
-                Text text = new Text(startX + cellWidth/2 - 10, y + cellHeight/2 + 5,
-                        String.valueOf(pilaList.get(i)));
-                text.setFont(Font.font("Arial", 20));
-                text.setStyle("-fx-font-weight: bold;");
-
-                if (i == 0) {
-                    Text topeLabel = new Text(startX + cellWidth + 10, y + cellHeight/2 + 5, "← TOPE");
-                    topeLabel.setFill(Color.GREEN);
-                    topeLabel.setStyle("-fx-font-weight: bold;");
-                    pilaPane.getChildren().add(topeLabel);
-                }
-
-                pilaPane.getChildren().addAll(rect, text);
-            }
-        }
-    }
-
+    /* --------------------- FICHEROS --------------------- */
     private void cargarDesdeArchivo() {
-        FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle("Cargar AP");
-        fileChooser.getExtensionFilters().add(
-                new FileChooser.ExtensionFilter("Archivos de texto", "*.txt")
-        );
-
-        File file = fileChooser.showOpenDialog(getScene().getWindow());
-        if (file != null) {
-            try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
-                estadosField.setText(reader.readLine());
-                alfabetoEntradaField.setText(reader.readLine());
-                alfabetoPilaField.setText(reader.readLine());
-                estadoInicialField.setText(reader.readLine());
-                simboloInicialPilaField.setText(reader.readLine());
-                estadosFinalesField.setText(reader.readLine());
-
-                StringBuilder transiciones = new StringBuilder();
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    transiciones.append(line).append("\n");
-                }
-                transicionesArea.setText(transiciones.toString());
-
-                outputArea.setText("✓ Archivo cargado exitosamente");
-            } catch (IOException e) {
-                mostrarError("Error al cargar archivo: " + e.getMessage());
+        FileChooser fc = new FileChooser();
+        fc.setTitle("Cargar autómata");
+        fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("Texto", "*.txt"));
+        File f = fc.showOpenDialog(null);
+        if (f == null) return;
+        try (BufferedReader br = new BufferedReader(new FileReader(f))) {
+            estadosField.clear(); alfabetoEntradaField.clear(); alfabetoPilaField.clear();
+            estadoInicialField.clear(); estadosFinalesField.clear();
+            transicionesArea.clear();
+            String l;
+            while ((l = br.readLine()) != null) {
+                if (l.startsWith("ESTADOS:")) estadosField.setText(l.substring(8).trim());
+                else if (l.startsWith("ENTRADA:")) alfabetoEntradaField.setText(l.substring(8).trim());
+                else if (l.startsWith("PILA:")) alfabetoPilaField.setText(l.substring(5).trim());
+                else if (l.startsWith("INICIAL:")) estadoInicialField.setText(l.substring(8).trim());
+                else if (l.startsWith("FINALES:")) estadosFinalesField.setText(l.substring(8).trim());
+                else if (l.startsWith("TRANSICION:")) transicionesArea.appendText(l.substring(11).trim() + "\n");
             }
+            outputArea.appendText("\n✓ Autómata cargado desde: " + f.getName());
+        } catch (IOException ex) {
+            Alert alert = new Alert(Alert.AlertType.ERROR, "Error al cargar:\n" + ex.getMessage());
+            alert.showAndWait();
         }
     }
 
     private void guardarEnArchivo() {
-        FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle("Guardar AP");
-        fileChooser.getExtensionFilters().add(
-                new FileChooser.ExtensionFilter("Archivos de texto", "*.txt")
-        );
-
-        File file = fileChooser.showSaveDialog(getScene().getWindow());
-        if (file != null) {
-            try (PrintWriter writer = new PrintWriter(new FileWriter(file))) {
-                writer.println(estadosField.getText());
-                writer.println(alfabetoEntradaField.getText());
-                writer.println(alfabetoPilaField.getText());
-                writer.println(estadoInicialField.getText());
-                writer.println(simboloInicialPilaField.getText());
-                writer.println(estadosFinalesField.getText());
-                writer.print(transicionesArea.getText());
-
-                outputArea.setText("✓ Archivo guardado exitosamente");
-            } catch (IOException e) {
-                mostrarError("Error al guardar archivo: " + e.getMessage());
-            }
+        FileChooser fc = new FileChooser();
+        fc.setTitle("Guardar autómata");
+        fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("Texto", "*.txt"));
+        File f = fc.showSaveDialog(null);
+        if (f == null) return;
+        try (PrintWriter w = new PrintWriter(f)) {
+            w.println("ESTADOS: " + estadosField.getText());
+            w.println("ENTRADA: " + alfabetoEntradaField.getText());
+            w.println("PILA: " + alfabetoPilaField.getText());
+            w.println("INICIAL: " + estadoInicialField.getText());
+            w.println("FINALES: " + estadosFinalesField.getText());
+            w.println("=== TRANSICIONES ===");
+            w.print(transicionesArea.getText());
+            outputArea.appendText("\n✓ Autómata guardado en: " + f.getName());
+        } catch (IOException ex) {
+            Alert alert = new Alert(Alert.AlertType.ERROR, "Error al guardar:\n" + ex.getMessage());
+            alert.showAndWait();
         }
     }
 
-    private void mostrarError(String mensaje) {
-        Alert alert = new Alert(Alert.AlertType.ERROR);
-        alert.setTitle("Error");
-        alert.setHeaderText(null);
-        alert.setContentText(mensaje);
-        alert.showAndWait();
+    /* --------------------- UTILS --------------------- */
+    private TextField createTField(String prompt) {
+        TextField tf = new TextField();
+        tf.setPromptText(prompt);
+        return tf;
+    }
+    private VBox createLabeled(String label, Control c) {
+        Label l = new Label(label);
+        VBox v = new VBox(5, l, c);
+        v.setPadding(new Insets(5));
+        Tooltip.install(c, new Tooltip("Introduce los valores que desees – pila siempre vacía inicial"));
+        return v;
+    }
+
+    /* --------------------- TABLE ROW --------------------- */
+    public static class TransicionRow {
+        public final javafx.beans.property.SimpleStringProperty
+                estado, entrada, pila, flecha, destino, apilar;
+        public TransicionRow(String e, String in, String p,
+                             String f, String d, String a) {
+            estado  = new javafx.beans.property.SimpleStringProperty(e);
+            entrada = new javafx.beans.property.SimpleStringProperty(in);
+            pila    = new javafx.beans.property.SimpleStringProperty(p);
+            flecha  = new javafx.beans.property.SimpleStringProperty(f);
+            destino = new javafx.beans.property.SimpleStringProperty(d);
+            apilar  = new javafx.beans.property.SimpleStringProperty(a);
+        }
     }
 }
+
