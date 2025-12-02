@@ -3,20 +3,44 @@ package org.example.Modelo;
 import java.util.*;
 
 /**
- * Clase que representa una Máquina de Turing
+ * Representa una Máquina de Turing genérica con:
+ * - Conjunto de estados
+ * - Alfabeto de entrada
+ * - Alfabeto de cinta
+ * - Función de transición
+ * - Estado inicial
+ * - Estados de aceptación
+ * - Símbolo blanco en la cinta
  */
 public class MaquinaTuring {
 
+    /** Conjunto de estados de la MT */
     private Set<String> estados;
+
+    /** Alfabeto de entrada (símbolos permitidos en la cadena de entrada) */
     private Set<Character> alfabetoEntrada;
+
+    /** Alfabeto de cinta (incluye símbolos de entrada y el blanco) */
     private Set<Character> alfabetoCinta;
+
+    /** Función de transición δ : (estado, símbolo) → (nuevoEstado, símboloEscribir, movimiento) */
     private Map<TransicionKey, TransicionValor> transiciones;
+
+    /** Estado inicial de la MT */
     private String estadoInicial;
+
+    /** Conjunto de estados de aceptación */
     private Set<String> estadosAceptacion;
+
+    /** Símbolo blanco usado en la cinta */
     private char simboloBlanco;
 
+    /** Historial de configuraciones generadas al procesar una cadena */
     private List<ConfiguracionMT> historial;
 
+    /**
+     * Constructor: inicializa estructuras vacías y establece '_' como blanco.
+     */
     public MaquinaTuring() {
         this.estados = new HashSet<>();
         this.alfabetoEntrada = new HashSet<>();
@@ -27,8 +51,11 @@ public class MaquinaTuring {
         this.historial = new ArrayList<>();
     }
 
+    //              Clases internas auxiliares
+
     /**
-     * Clase para la clave de transición
+     * Representa la clave para la función de transición:
+     * un par (estadoActual, simboloLeído).
      */
     public static class TransicionKey {
         String estado;
@@ -59,13 +86,16 @@ public class MaquinaTuring {
     }
 
     /**
-     * Clase para el valor de transición
+     * Representa el valor de la función de transición:
+     * (estadoDestino, símbolo a escribir, dirección de movimiento).
      */
     public static class TransicionValor {
-        String estadoDestino;
-        char simboloEscribir;
-        Direccion movimiento;
 
+        public String estadoDestino;
+        public char simboloEscribir;
+        public Direccion movimiento;
+
+        /** Dirección del movimiento del cabezal */
         public enum Direccion { IZQUIERDA, DERECHA, ESTATICO }
 
         public TransicionValor(String estadoDestino, char simboloEscribir, Direccion movimiento) {
@@ -83,9 +113,11 @@ public class MaquinaTuring {
     }
 
     /**
-     * Configuración de la MT
+     * Representa una configuración instantánea de la MT:
+     * estado actual, contenido de la cinta y posición del cabezal.
      */
     public static class ConfiguracionMT {
+
         public String estado;
         public List<Character> cinta;
         public int cabezal;
@@ -96,6 +128,9 @@ public class MaquinaTuring {
             this.cabezal = cabezal;
         }
 
+        /**
+         * Devuelve la cinta como texto, marcando la posición del cabezal con [ ].
+         */
         public String getCintaString() {
             StringBuilder sb = new StringBuilder();
             for (int i = 0; i < cinta.size(); i++) {
@@ -114,20 +149,25 @@ public class MaquinaTuring {
         }
     }
 
-    // Métodos de configuración
+    //              Métodos de configuración
+
+    /** Agrega un estado al conjunto de estados */
     public void agregarEstado(String estado) {
         estados.add(estado);
     }
 
+    /** Agrega un símbolo al alfabeto de entrada (y de cinta automáticamente) */
     public void agregarSimboloEntrada(char simbolo) {
         alfabetoEntrada.add(simbolo);
         alfabetoCinta.add(simbolo);
     }
 
+    /** Agrega un símbolo exclusivamente al alfabeto de cinta */
     public void agregarSimboloCinta(char simbolo) {
         alfabetoCinta.add(simbolo);
     }
 
+    /** Define el estado inicial */
     public void setEstadoInicial(String estado) {
         if (!estados.contains(estado)) {
             throw new IllegalArgumentException("Estado no existe");
@@ -135,6 +175,7 @@ public class MaquinaTuring {
         this.estadoInicial = estado;
     }
 
+    /** Agrega un estado al conjunto de aceptación */
     public void agregarEstadoAceptacion(String estado) {
         if (!estados.contains(estado)) {
             throw new IllegalArgumentException("Estado no existe");
@@ -142,17 +183,19 @@ public class MaquinaTuring {
         estadosAceptacion.add(estado);
     }
 
+    /** establece el símbolo blanco y lo agrega al alfabeto de cinta */
     public void setSimboloBlanco(char simbolo) {
         this.simboloBlanco = simbolo;
         alfabetoCinta.add(simbolo);
     }
 
     /**
-     * Agrega una transición
+     * Agrega una transición δ(estadoOrigen, simboloLeer) = (estadoDestino, simboloEscribir, direccion)
      */
     public void agregarTransicion(String estadoOrigen, char simboloLeer,
                                   String estadoDestino, char simboloEscribir,
                                   TransicionValor.Direccion direccion) {
+
         if (!estados.contains(estadoOrigen) || !estados.contains(estadoDestino)) {
             throw new IllegalArgumentException("Estados no válidos");
         }
@@ -161,37 +204,44 @@ public class MaquinaTuring {
         transiciones.put(key, new TransicionValor(estadoDestino, simboloEscribir, direccion));
     }
 
+    //              Ejecución de la máquina
+
     /**
-     * Procesa una cadena
+     * Procesa una cadena de entrada.
+     * Ejecuta la máquina de Turing paso a paso hasta que:
+     *  - alcanza un estado de aceptación → retorna true
+     *  - no existe transición → retorna false
+     *  - excede el límite de pasos → retorna false
      */
     public boolean procesar(String entrada) {
         historial.clear();
 
-        // Inicializar cinta
+        // Inicializar cinta con la entrada
         List<Character> cinta = new ArrayList<>();
         for (char c : entrada.toCharArray()) {
             cinta.add(c);
         }
-        // Agregar blancos al final
-        for (int i = 0; i < 10; i++) {
-            cinta.add(simboloBlanco);
-        }
+
+        // Agregar blancos adicionales
+        for (int i = 0; i < 10; i++) cinta.add(simboloBlanco);
 
         String estadoActual = estadoInicial;
         int cabezal = 0;
-        int maxPasos = 1000; // Prevenir bucles infinitos
         int pasos = 0;
+        int maxPasos = 1000;
 
+        // Ciclo principal de ejecución
         while (pasos < maxPasos) {
-            // Guardar configuración
+
+            // Registrar configuración actual
             historial.add(new ConfiguracionMT(estadoActual, cinta, cabezal));
 
-            // Verificar estado de aceptación
+            // Verificar aceptación
             if (estadosAceptacion.contains(estadoActual)) {
                 return true;
             }
 
-            // Expandir cinta si es necesario
+            // Extender cinta si cabezal sale del rango
             if (cabezal < 0) {
                 cinta.add(0, simboloBlanco);
                 cabezal = 0;
@@ -199,13 +249,12 @@ public class MaquinaTuring {
                 cinta.add(simboloBlanco);
             }
 
-            // Buscar transición
+            // Obtener transición
             char simboloActual = cinta.get(cabezal);
             TransicionKey key = new TransicionKey(estadoActual, simboloActual);
 
             if (!transiciones.containsKey(key)) {
-                // No hay transición, rechazar
-                return false;
+                return false; // No hay transición → rechazo
             }
 
             TransicionValor trans = transiciones.get(key);
@@ -214,21 +263,22 @@ public class MaquinaTuring {
             cinta.set(cabezal, trans.simboloEscribir);
             estadoActual = trans.estadoDestino;
 
-            // Mover cabezal
-            if (trans.movimiento == TransicionValor.Direccion.IZQUIERDA) {
-                cabezal--;
-            } else if (trans.movimiento == TransicionValor.Direccion.DERECHA) {
-                cabezal++;
+            switch (trans.movimiento) {
+                case IZQUIERDA -> cabezal--;
+                case DERECHA -> cabezal++;
             }
 
             pasos++;
         }
 
-        return false; // Excedió el límite de pasos
+        return false; // Excedió pasos permitidos
     }
 
+
+    //              Métodos auxiliares
     /**
-     * Obtiene la cadena resultante en la cinta (sin blancos finales)
+     * Retorna la cadena final contenida en la cinta
+     * ignorando símbolos blancos al final.
      */
     public String obtenerResultadoCinta() {
         if (historial.isEmpty()) return "";

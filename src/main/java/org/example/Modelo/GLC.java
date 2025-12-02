@@ -3,36 +3,42 @@ package org.example.Modelo;
 import java.util.*;
 
 /**
- * Clase que representa una Gramática Libre de Contexto (GLC)
+ * Representa una Gramática Libre de Contexto (GLC) con soporte para:
+ * - Verificación de pertenencia de cadenas mediante derivación izquierda o derecha.
+ * - Generación del árbol sintáctico asociado a una derivación.
+ * - Visualización estructurada del árbol derivado.
  */
 public class GLC {
 
-    private Set<String> noTerminales;
-    private Set<Character> terminales;
-    private String simboloInicial;
-    // Se usa LinkedHashMap para mantener el orden de inserción de las claves (No Terminales).
-    private Map<String, List<String>> producciones;
+    private Set<String> noTerminales;       // Conjunto de símbolos no terminales.
+    private Set<Character> terminales;      // Conjunto de símbolos terminales.
+    private String simboloInicial;          // Símbolo inicial de la gramática.
+    private Map<String, List<String>> producciones; // Producciones de cada no terminal.
 
     public GLC() {
         this.noTerminales = new HashSet<>();
         this.terminales = new HashSet<>();
-        this.producciones = new LinkedHashMap<>();
+        this.producciones = new LinkedHashMap<>(); // Mantiene el orden de inserción.
     }
 
+    // Establece el símbolo inicial y lo agrega automáticamente como No Terminal.
     public void setSimboloInicial(String simbolo) {
         this.simboloInicial = simbolo;
         this.noTerminales.add(simbolo);
     }
 
+    // Registra un nuevo No Terminal y crea su lista de producciones.
     public void agregarNoTerminal(String nt) {
         noTerminales.add(nt);
         producciones.putIfAbsent(nt, new ArrayList<>());
     }
 
+    // Agrega un símbolo terminal al alfabeto.
     public void agregarTerminal(char t) {
         terminales.add(t);
     }
 
+    // Añade una producción A → α al No Terminal correspondiente.
     public void agregarProduccion(String noTerminal, String produccion) {
         if (!noTerminales.contains(noTerminal)) {
             throw new IllegalArgumentException("No terminal no existe: " + noTerminal);
@@ -65,7 +71,7 @@ public class GLC {
         }
     }
 
-    // Verifica la pertenencia de una cadena usando la derivación izquierda
+    // Determina si la cadena puede derivarse desde el símbolo inicial usando derivación izquierda.
     public boolean pertenece(String cadena) {
         if (simboloInicial == null) return false;
 
@@ -77,6 +83,7 @@ public class GLC {
         return !derivaciones.isEmpty() && derivaciones.get(derivaciones.size() - 1).equals(cadena);
     }
 
+    // Devuelve la lista de pasos aplicados en una derivación izquierda.
     public List<String> derivarIzquierda(String objetivo) {
         List<String> derivaciones = new ArrayList<>();
         derivaciones.add(simboloInicial);
@@ -90,6 +97,7 @@ public class GLC {
         return Arrays.asList("No se pudo derivar la cadena");
     }
 
+    // Búsqueda recursiva con poda, límites de profundidad y detección de ciclos.
     private boolean derivarIzquierdaRec(String actual, String objetivo, List<String> derivaciones, int profundidad, Set<String> visitados) {
         // 🚨 Límite de longitud: Si la cadena de derivación se hace mucho más larga que el objetivo, aborta.
         if (actual.length() > objetivo.length() * 2 + 5 && contieneNoTerminal(actual)) {
@@ -155,6 +163,7 @@ public class GLC {
         return false;
     }
 
+    // Misma estructura que la derivación izquierda, pero expandiendo el No Terminal más a la derecha.
     public List<String> derivarDerecha(String objetivo) {
         List<String> derivaciones = new ArrayList<>();
         derivaciones.add(simboloInicial);
@@ -169,14 +178,14 @@ public class GLC {
     }
 
     private boolean derivarDerechaRec(String actual, String objetivo, List<String> derivaciones, int profundidad, Set<String> visitados) {
-        // 🚨 Límite de longitud
+        //  Límite de longitud
         if (actual.length() > objetivo.length() * 2 + 5 && contieneNoTerminal(actual)) {
             return false;
         }
 
         if (profundidad > 500) return false;
 
-        // Detección de buclos
+        // Detección de bucles
         if (visitados.contains(actual)) {
             return false;
         }
@@ -246,7 +255,7 @@ public class GLC {
     }
 
     private boolean construirArbolRec(NodoArbol nodo, String objetivo, int profundidad) {
-        // ⚠️ Límite de profundidad estricto para evitar congelamiento en árbol
+        // Límite de profundidad estricto para evitar congelamiento en árbol
         if (profundidad > 100) return false;
 
         String simbolo = nodo.getSimbolo();
@@ -305,7 +314,7 @@ public class GLC {
             return false;
         } else { // Es No Terminal
 
-            // 🚨 Corrección de Partición (Split): Limita las pruebas de división
+            // Corrección de Partición (Split): Limita las pruebas de división
             for (int i = 0; i <= objetivo.length(); i++) {
                 String subObjetivo = objetivo.substring(0, i);
                 String restoObjetivo = objetivo.substring(i);
