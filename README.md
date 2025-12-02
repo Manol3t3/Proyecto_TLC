@@ -1,9 +1,9 @@
 # Proyecto Final de Teoría de la Computación - Simulador de AF, AP, GR, GLC y MAQUINAS DE TURING
 
-este proyecto se trata de desarollar un entorno grafico que pueda ayudar a los estudiantes o al que se le presente una perspectiva clara del funcionamiento de autómatas finitos de pila, gramáticas regulares, gramáticas libres de contexto y maquinas de turing, esto con el fin de que la persona que lo use pueda entender mejor el funcionamiento de estos.
+Este proyecto consiste en el desarrollo de un entorno gráfico interactivo diseñado para facilitar el aprendizaje y la comprensión de los principales modelos computacionales estudiados en Teoría de la Computación. El simulador permite visualizar, construir y ejecutar Autómatas Finitos Deterministas (AFD), Autómatas de Pila (AP), Gramáticas Regulares (GR), Gramáticas Libres de Contexto (GLC) y Máquinas de Turing (MT).
 
 # Objetivo del proyecto:
-Este proyecto está hecho con el fin de entender el funcionamiento y construcción de autómatas finitos de pila, gramáticas regulares y gramáticas libres de contexto y maquinas de turing esto con el fin de ayudar al aprendizaje de estos.
+Desarrollar una plataforma interactiva que permita comprender, construir y simular los modelos fundamentales de la Teoría de la Computación, fortaleciendo el aprendizaje mediante visualización y práctica guiada.
 
 # 1. Modo AFD (Autómata Finito Determinista)
 Permite definir completamente un autómata ingresando:
